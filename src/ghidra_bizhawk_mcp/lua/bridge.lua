@@ -21,7 +21,106 @@
 --   EmuHawk.exe --socket_ip=127.0.0.1 --socket_port=8766 --lua=bridge.lua <rom>
 --   Alternatively, load manually: Tools → Lua Console → Open Script
 
-local json = require("json")
+-- Pure Lua JSON (no external deps — BizHawk/NLua doesn't bundle a json module)
+local json = {}
+function json.encode(t)
+    if t == nil then return "null" end
+    local tpe = type(t)
+    if tpe == "string"  then return '"' .. t:gsub('["\\]', {['"'] = '\\"', ['\\'] = '\\\\'}):gsub('\n', '\\n'):gsub('\r', '\\r'):gsub('\t', '\\t') .. '"' end
+    if tpe == "number"  then return tostring(t) end
+    if tpe == "boolean" then return tostring(t) end
+    if tpe == "table" then
+        local is_arr, max_n = true, 0
+        for k, _ in pairs(t) do
+            if type(k) ~= "number" or k < 1 then is_arr = false; break end
+            if k > max_n then max_n = k end
+        end
+        if is_arr then
+            local parts = {}
+            for i = 1, max_n do parts[i] = json.encode(t[i]) end
+            return "[" .. table.concat(parts, ",") .. "]"
+        else
+            local parts = {}
+            local i = 1
+            for k, v in pairs(t) do
+                parts[i] = json.encode(tostring(k)) .. ":" .. json.encode(v)
+                i = i + 1
+            end
+            return "{" .. table.concat(parts, ",") .. "}"
+        end
+    end
+    return "null"
+end
+function json.decode(s)
+    if not s or #s == 0 then return nil end
+    local pos, ok = 1, true
+    local function skip() while pos <= #s do local c = s:sub(pos,pos); if c == ' ' or c == '\t' or c == '\n' or c == '\r' then pos = pos + 1 else break end end end
+    local function expect(ch)
+        skip(); if s:sub(pos,pos) ~= ch then ok = false end; pos = pos + 1
+    end
+    local function parse_val()
+        skip(); if not ok then return nil end
+        if pos > #s then return nil end
+        local c = s:sub(pos,pos)
+        if c == '"' then
+            pos = pos + 1
+            local out = {}
+            while pos <= #s do
+                local cc = s:sub(pos,pos)
+                if cc == '"' then pos = pos + 1; break end
+                if cc == '\\' then
+                    pos = pos + 1; local esc = s:sub(pos,pos)
+                    if esc == '"' or esc == '\\' then out[#out+1] = esc
+                    elseif esc == 'n' then out[#out+1] = '\n'
+                    elseif esc == 'r' then out[#out+1] = '\r'
+                    elseif esc == 't' then out[#out+1] = '\t'
+                    elseif esc == 'u' then
+                        local hex = s:sub(pos+1,pos+4)
+                        out[#out+1] = utf8 and utf8.char(tonumber(hex, 16)) or '?'
+                        pos = pos + 4
+                    end
+                    pos = pos + 1
+                else out[#out+1] = cc; pos = pos + 1 end
+            end
+            return table.concat(out)
+        elseif c == '{' then
+            pos = pos + 1; local obj = {}
+            skip()
+            if s:sub(pos,pos) == '}' then pos = pos + 1; return obj end
+            while ok do
+                skip(); local k = parse_val(); skip(); expect(':'); skip(); local v = parse_val()
+                if ok then obj[tostring(k)] = v end
+                skip()
+                local cc = s:sub(pos,pos)
+                if cc == ',' then pos = pos + 1
+                elseif cc == '}' then pos = pos + 1; break
+                else ok = false end
+            end
+            return obj
+        elseif c == '[' then
+            pos = pos + 1; local arr = {}
+            skip()
+            if s:sub(pos,pos) == ']' then pos = pos + 1; return arr end
+            while ok do
+                table.insert(arr, parse_val()); skip()
+                local cc = s:sub(pos,pos)
+                if cc == ',' then pos = pos + 1
+                elseif cc == ']' then pos = pos + 1; break
+                else ok = false end
+            end
+            return arr
+        elseif c == 't' then pos = pos + 4; return true
+        elseif c == 'f' then pos = pos + 5; return false
+        elseif c == 'n' then pos = pos + 4; return nil
+        else
+            local _, e = s:find('^[-]?[0-9]+%.?[0-9]*([eE][+-]?[0-9]+)?', pos)
+            if e then local n = tonumber(s:sub(pos,e)); pos = e + 1; return n end
+            ok = false; return nil
+        end
+    end
+    local r = parse_val()
+    return r
+end
 
 local pending_result = nil
 
@@ -302,13 +401,21 @@ end
 console.log("[ghidra-bizhawk-mcp] frame loop active — polling once per frame")
 
 local tick_count = 0
+local disconnect_count = 0
 while true do
     tick_count = tick_count + 1
 
     if tick_count % 60 == 0 and comm.socketServerIsConnected then
         local connected = comm.socketServerIsConnected()
         if not connected then
-            console.log("[ghidra-bizhawk-mcp] socket disconnected, waiting for reconnection...")
+            disconnect_count = disconnect_count + 1
+            console.log("[ghidra-bizhawk-mcp] socket disconnected (" .. disconnect_count .. "), waiting for reconnection...")
+            if disconnect_count >= 10 then
+                console.log("[ghidra-bizhawk-mcp] socket disconnected for ~10 seconds, exiting bridge loop")
+                break
+            end
+        else
+            disconnect_count = 0
         end
     end
 

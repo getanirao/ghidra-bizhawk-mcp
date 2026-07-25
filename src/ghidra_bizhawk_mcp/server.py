@@ -526,11 +526,23 @@ TOOLS = [
             "required": ["path"],
         },
     ),
+    types.Tool(
+        name="bizhawk_launch",
+        description="Launch BizHawk emulator and connect the bridge. Optionally specify a ROM path.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "rom_path": {"type": "string", "description": "Optional path to a ROM file to load"},
+            },
+        },
+    ),
 ]
 
 
 async def serve():
     await get_bridge().start()
+    # Start JVM boot in background so MCP initialize doesn't timeout
+    asyncio.create_task(_boot_jvm())
     server = Server("ghidra-bizhawk-mcp")
 
     @server.list_tools()
@@ -546,19 +558,22 @@ async def serve():
             logger.exception("Tool call failed")
             return [types.TextContent(type="text", text=f"Error: {e}")]
 
-    async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            InitializationOptions(
-                server_name="ghidra-bizhawk-mcp",
-                server_version="0.1.0",
-                capabilities=server.get_capabilities(
-                    notification_options=NotificationOptions(),
-                    experimental_capabilities={},
+    try:
+        async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
+            await server.run(
+                read_stream,
+                write_stream,
+                InitializationOptions(
+                    server_name="ghidra-bizhawk-mcp",
+                    server_version="0.1.0",
+                    capabilities=server.get_capabilities(
+                        notification_options=NotificationOptions(),
+                        experimental_capabilities={},
+                    ),
                 ),
-            ),
-        )
+            )
+    finally:
+        await get_bridge().stop()
 
 
 async def _dispatch(name: str, args: dict):
@@ -719,6 +734,11 @@ async def _dispatch(name: str, args: dict):
         result = await bridge.send_command("ping")
         return {"status": "connected", "result": result}
 
+    if name == "bizhawk_launch":
+        rom_path = args.get("rom_path")
+        await bridge.ensure_connected(rom_path)
+        return {"status": "connected", "emu": bridge._emu_path, "rom": rom_path}
+
     if name == "bizhawk_get_info":
         return await bridge.send_command("get_info")
 
@@ -791,6 +811,14 @@ async def _dispatch(name: str, args: dict):
     raise ValueError(f"Unknown tool: {name}")
 
 
+async def _boot_jvm():
+    """Boot JVM in background thread so MCP initialize responds instantly."""
+    logger.info("Booting JVM in background (this may take 30-60 seconds)...")
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, session.start)
+    logger.info("JVM ready")
+
+
 def _format_result(obj) -> str:
     import json
     return json.dumps(obj, indent=2, default=str)
@@ -803,7 +831,7 @@ def main():
         stream=sys.stderr,
     )
 
-    parser = argparse.ArgumentParser(description="Ghidra Retro MCP Server")
+    parser = argparse.ArgumentParser(description="Ghidra BizHawk MCP Server")
     parser.add_argument(
         "--ghidra-dir",
         default=os.environ.get("GHIDRA_INSTALL_DIR"),
@@ -814,10 +842,7 @@ def main():
     if args.ghidra_dir:
         session._ghidra_dir = args.ghidra_dir
 
-    logger.info("Starting Ghidra headless MCP server...")
-    logger.info("Booting JVM (this may take 30-60 seconds)...")
-    session.start()
-    logger.info("JVM ready, starting MCP server...")
+    logger.info("Starting Ghidra BizHawk MCP server...")
     asyncio.run(serve())
 
 

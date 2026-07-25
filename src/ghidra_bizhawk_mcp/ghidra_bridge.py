@@ -6,6 +6,7 @@ import uuid
 import re
 import shutil
 import tempfile
+import threading
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -70,36 +71,40 @@ class GhidraSession:
         self._sessions: dict[str, SessionInfo] = {}
         self._active_session_id: Optional[str] = None
         self._started = False
+        self._start_lock = threading.Lock()
 
     def start(self):
         if self._started:
             return
-        if not _HAS_PYGHIDRA:
-            raise RuntimeError(
-                "pyghidra not found. Install with: pip install ghidra-bizhawk-mcp[ghidra]"
-            )
-        kwargs = {}
-        if self._ghidra_dir:
-            kwargs["install_dir"] = self._ghidra_dir
-        # Suppress Java stdout noise that would break MCP JSON-RPC
-        old_stdout = sys.stdout
-        sys.stdout = sys.stderr
-        try:
-            _pyghidra.start(**kwargs)
-        finally:
-            sys.stdout = old_stdout
-        logger.info("pyghidra started — importing Ghidra classes")
-        global FunctionManager, CodeUnit, ReferenceManager, SourceType
-        global StructureDataType, CategoryPath, ByteDataType, DecompInterface, ConsoleTaskMonitor
-        global _HAS_GHIDRA
-        from ghidra.program.model.listing import FunctionManager, CodeUnit
-        from ghidra.program.model.symbol import ReferenceManager, SourceType
-        from ghidra.program.model.data import StructureDataType, CategoryPath, ByteDataType
-        from ghidra.app.decompiler import DecompInterface
-        from ghidra.util.task import ConsoleTaskMonitor
-        _HAS_GHIDRA = True
-        self._started = True
-        logger.info("Ghidra classes imported")
+        with self._start_lock:
+            if self._started:
+                return
+            if not _HAS_PYGHIDRA:
+                raise RuntimeError(
+                    "pyghidra not found. Install with: pip install ghidra-bizhawk-mcp[ghidra]"
+                )
+            kwargs = {}
+            if self._ghidra_dir:
+                kwargs["install_dir"] = self._ghidra_dir
+            # Suppress Java stdout noise that would break MCP JSON-RPC
+            old_stdout = sys.stdout
+            sys.stdout = sys.stderr
+            try:
+                _pyghidra.start(**kwargs)
+            finally:
+                sys.stdout = old_stdout
+            logger.info("pyghidra started — importing Ghidra classes")
+            global FunctionManager, CodeUnit, ReferenceManager, SourceType
+            global StructureDataType, CategoryPath, ByteDataType, DecompInterface, ConsoleTaskMonitor
+            global _HAS_GHIDRA
+            from ghidra.program.model.listing import FunctionManager, CodeUnit
+            from ghidra.program.model.symbol import ReferenceManager, SourceType
+            from ghidra.program.model.data import StructureDataType, CategoryPath, ByteDataType
+            from ghidra.app.decompiler import DecompInterface
+            from ghidra.util.task import ConsoleTaskMonitor
+            _HAS_GHIDRA = True
+            self._started = True
+            logger.info("Ghidra classes imported")
 
     def _make_session_id(self) -> str:
         return uuid.uuid4().hex[:12]

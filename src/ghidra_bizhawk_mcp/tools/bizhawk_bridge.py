@@ -2,11 +2,14 @@ import asyncio
 import json
 import logging
 import os
+import subprocess
+import sys
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_HOST = "127.0.0.1"
 _DEFAULT_PORT = int(os.environ.get("BIZHAWK_PORT", "8766"))
+_EMU_EXE = "EmuHawk.exe"
 
 
 class BizhawkBridge:
@@ -36,6 +39,36 @@ class BizhawkBridge:
         self._pending_future: asyncio.Future | None = None
         self._pending_cmd: dict | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._emu_path: str | None = None
+        self._process: subprocess.Popen | None = None
+
+    @staticmethod
+    def find_emu_path() -> str | None:
+        """Locate EmuHawk.exe on this system."""
+        env_path = os.environ.get("BIZHAWK_EXE_PATH")
+        if env_path and os.path.isfile(env_path):
+            return env_path
+        candidates = [
+            os.path.expandvars(r"%ProgramFiles%\BizHawk\EmuHawk.exe"),
+            os.path.expandvars(r"%ProgramFiles(x86)%\BizHawk\EmuHawk.exe"),
+            os.path.expandvars(r"%LOCALAPPDATA%\BizHawk\EmuHawk.exe"),
+            os.path.expandvars(r"%USERPROFILE%\Downloads\BizHawk-2.11.1-win-x64\EmuHawk.exe"),
+        ]
+        for c in candidates:
+            if os.path.isfile(c):
+                return c
+        # Search PATH
+        for dir_ in os.environ.get("PATH", "").split(os.pathsep):
+            p = os.path.join(dir_, _EMU_EXE)
+            if os.path.isfile(p):
+                return p
+        return None
+
+    def _bridge_lua_path(self) -> str | None:
+        """Return path to the bundled bridge.lua."""
+        pkg_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        lua = os.path.join(pkg_dir, "lua", "bridge.lua")
+        return lua if os.path.isfile(lua) else None
 
     # ── Public API ───────────────────────────────────────────────────────
 
@@ -49,11 +82,72 @@ class BizhawkBridge:
         logger.info("BizHawk bridge listening on %s:%s", self._host, self._port)
 
     async def stop(self):
+        self._connected = False
+        # Cancel any pending command
+        if self._pending_future and not self._pending_future.done():
+            self._pending_future.cancel()
+            self._pending_future = None
+            self._pending_cmd = None
+        # Close TCP writer
         if self._writer:
             self._writer.close()
+            try:
+                await self._writer.wait_closed()
+            except Exception:
+                pass
+            self._writer = None
+        # Close TCP server
         if self._server:
             self._server.close()
-        self._connected = False
+            await self._server.wait_closed()
+            self._server = None
+        # Terminate BizHawk subprocess
+        if self._process:
+            try:
+                self._process.terminate()
+                self._process.wait(timeout=5)
+            except Exception:
+                try:
+                    self._process.kill()
+                    self._process.wait(timeout=3)
+                except Exception:
+                    pass
+            self._process = None
+        self._reader = None
+
+    async def ensure_connected(self, rom_path: str | None = None):
+        """Auto-launch BizHawk if not connected. Blocks until bridge connects."""
+        if self._connected:
+            return
+        emu = self._emu_path or self.find_emu_path()
+        if not emu:
+            raise RuntimeError(
+                "BizHawk not found. Set BIZHAWK_EXE_PATH env var or install BizHawk."
+            )
+        self._emu_path = emu
+        await self.launch(emu, rom_path)
+
+    async def launch(self, emu_path: str, rom_path: str | None = None):
+        """Launch EmuHawk with the bridge Lua script and wait for connection."""
+        if self._connected:
+            return
+        lua = self._bridge_lua_path()
+        if not lua:
+            raise RuntimeError("bridge.lua not found in package")
+        args = [emu_path, f"--socket_ip={self._host}", f"--socket_port={self._port}", f"--lua={lua}"]
+        if rom_path:
+            args.append(os.path.abspath(rom_path))
+        logger.info("Launching BizHawk: %s", " ".join(args))
+        try:
+            self._process = subprocess.Popen(args, shell=False)
+        except FileNotFoundError:
+            raise RuntimeError(f"EmuHawk executable not found: {emu_path}")
+        # Wait up to 30s for bridge to connect
+        for _ in range(300):
+            if self._connected:
+                return
+            await asyncio.sleep(0.1)
+        raise TimeoutError("BizHawk started but bridge did not connect within 30s")
 
     @property
     def is_connected(self) -> bool:
@@ -67,7 +161,7 @@ class BizhawkBridge:
         Raises TimeoutError after 10 seconds with no response.
         """
         if not self._connected:
-            raise RuntimeError("BizHawk is not connected — launch EmuHawk with --socket_ip=127.0.0.1 --socket_port=8766 --lua=bridge.lua")
+            await self.ensure_connected()
         if self._pending_future is not None:
             raise RuntimeError("A command is already in flight")
 

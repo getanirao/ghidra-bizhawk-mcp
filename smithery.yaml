@@ -14,7 +14,7 @@ startCommand:
         description: "Optional path to EmuHawk.exe for live emulation. Leave blank for Ghidra-only mode."
       mockMode:
         type: boolean
-        default: false
+        default: true
         description: "Enable mock mode for zero-dependency environments (disables Ghidra/BizHawk connections)"
   commandFunction:
     |-

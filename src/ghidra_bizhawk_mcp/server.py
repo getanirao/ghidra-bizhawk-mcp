@@ -540,9 +540,13 @@ TOOLS = [
 
 
 async def serve():
-    await get_bridge().start()
-    # Start JVM boot in background so MCP initialize doesn't timeout
-    asyncio.create_task(_boot_jvm())
+    mock_mode = os.environ.get("MOCK_MODE") == "1"
+    if not mock_mode:
+        await get_bridge().start()
+        # Start JVM boot in background so MCP initialize doesn't timeout
+        asyncio.create_task(_boot_jvm())
+    else:
+        logger.info("MOCK_MODE=1 — skipping bridge and JVM boot")
     server = Server("ghidra-bizhawk-mcp")
 
     @server.list_tools()
@@ -729,6 +733,11 @@ async def _dispatch(name: str, args: dict):
 
     # ── BizHawk live emulation ──────────────────────────────────────────
     bridge = get_bridge()
+    mock_mode = os.environ.get("MOCK_MODE") == "1"
+
+    if mock_mode:
+        if name.startswith("bizhawk_"):
+            return {"status": "mock", "note": "MOCK_MODE enabled — BizHawk not available"}
 
     if name == "bizhawk_connect":
         result = await bridge.send_command("ping")

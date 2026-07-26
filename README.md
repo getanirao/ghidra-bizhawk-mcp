@@ -4,6 +4,50 @@ A unified MCP (Model Context Protocol) server bridging Ghidra's headless static 
 
 > **GBA ROMs**: If analyzing Game Boy Advance ROMs, install [pudii/gba-ghidra-loader](https://github.com/pudii/gba-ghidra-loader) in your Ghidra installation for proper ROM header parsing, mirrored memory regions, and I/O register maps. The loader repository has pre-built `.gpa` files for Ghidra 11.x.
 
+## Prerequisites
+
+| Dependency | Version | Required | Notes |
+|---|---|---|---|
+| Python | >= 3.10 | Yes | Runtime for the MCP server |
+| Ghidra | 11.x or 12.x | Yes | Headless or GUI install; `GHIDRA_INSTALL_DIR` must point here |
+| Java (JDK) | >= 17 | Yes | Bundled with Ghidra; needed for JVM bridge |
+| pyghidra | >= 3.0 | Yes | Python-to-Ghidra bridge; installed automatically |
+| BizHawk (EmuHawk) | Latest stable | No | Only needed for live emulation tools; `BIZHAWK_EXE_PATH` optional |
+| Docker | Latest | No | Only needed for containerized deployment |
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        MCP Client (Claude / Cursor)              │
+│  sends JSON-RPC over stdin/stdout                                │
+└──────────────┬──────────────────────────────────────┬───────────┘
+               │                                      │
+               ▼                                      ▼
+┌──────────────────────────────┐    ┌──────────────────────────────┐
+│     ghidra-bizhawk-mcp       │    │     BizHawk Lua Bridge       │
+│  ┌─────────────────────────┐ │    │  ┌────────────────────────┐ │
+│  │   MCP Server (server.py)│ │    │  │  bridge.lua            │ │
+│  │   tool registry, stdio  │─┼────┼─>│  memory read/write     │ │
+│  │   dispatch              │ │    │  │  joypad, savestate     │ │
+│  └───────────┬─────────────┘ │    │  │  frame advance         │ │
+│              │               │    │  └────────────────────────┘ │
+│  ┌───────────▼─────────────┐ │    └──────────────────────────────┘
+│  │   GhidraSession         │ │
+│  │   pyghidra JVM bridge   │ │
+│  │   decompile, search,    │ │
+│  │   emulate, fingerprint  │ │
+│  │   ┌───────────────────┐ │ │
+│  │   │ Ghidra JVM (Java) │ │ │
+│  │   │ EmulatorHelper    │ │ │
+│  │   │ SLEIGH / P-code   │ │ │
+│  │   └───────────────────┘ │ │
+│  └─────────────────────────┘ │
+└──────────────────────────────┘
+```
+
+All communication is **local stdio only** — there is no HTTP listener, no TCP socket, and no network exposure.
+
 ## Security Model
 
 This server communicates **exclusively over standard process stdio** — there is no HTTP socket, no TCP listener, and no network interface exposed. It is inherently immune to LAN/WAN exposure, SSRF, and unauthenticated API attacks. The only way to interact with it is for an MCP client to launch it as a subprocess and communicate via stdin/stdout.
@@ -58,13 +102,41 @@ Instead of forcing your AI agent to spend cycles manually identifying architectu
 
 ## Quick Start
 
-### Local
+### 1. Install
 
 ```bash
+pip install ghidra-bizhawk-mcp
+```
+
+Or from source:
+
+```bash
+git clone https://github.com/getanirao/ghidra-bizhawk-mcp.git
+cd ghidra-bizhawk-mcp
 pip install -e .
-set GHIDRA_INSTALL_DIR=C:\path\to\ghidra   # Windows
+```
+
+### 2. Set environment
+
+```bash
+# Required: point to your Ghidra installation
+export GHIDRA_INSTALL_DIR=/opt/ghidra_11.2    # Linux / macOS
+set GHIDRA_INSTALL_DIR=C:\Program Files\ghidra_11.2   # Windows
+
+# Optional: enable live BizHawk emulation
+export BIZHAWK_EXE_PATH=/path/to/EmuHawk.exe
+
+# Optional: run in mock mode (no Ghidra/BizHawk needed)
+export MOCK_MODE=1
+```
+
+### 3. Run
+
+```bash
 ghidra-bizhawk-mcp
 ```
+
+The server listens on **stdin/stdout** — pipe it to any MCP-compatible client.
 
 ### Docker
 
@@ -75,15 +147,45 @@ docker run -i --rm -v /path/to/binaries:/data ghidra-bizhawk-mcp
 
 The container bundles JDK 17, Ghidra 11.2, and the server — no host dependencies beyond Docker.
 
-## Claude Desktop config
+## Configuration
+
+### Environment Variables
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `GHIDRA_INSTALL_DIR` | Yes | — | Path to Ghidra installation (e.g. `/opt/ghidra_11.2`) |
+| `BIZHAWK_EXE_PATH` | No | — | Path to EmuHawk.exe for live emulation features |
+| `MOCK_MODE` | No | `0` | Set to `1` to run without Ghidra/BizHawk (for testing/CI) |
+
+### Claude Desktop
+
+Add to your `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
-    "ghidra-headless": {
+    "ghidra-bizhawk": {
       "command": "ghidra-bizhawk-mcp",
-      "args": ["--ghidra-dir", "C:\\path\\to\\ghidra"],
-      "env": {}
+      "env": {
+        "GHIDRA_INSTALL_DIR": "/opt/ghidra_11.2"
+      }
+    }
+  }
+}
+```
+
+### Cursor
+
+Add to your Cursor MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "ghidra-bizhawk": {
+      "command": "ghidra-bizhawk-mcp",
+      "env": {
+        "GHIDRA_INSTALL_DIR": "/opt/ghidra_11.2"
+      }
     }
   }
 }
@@ -294,32 +396,9 @@ auto_restore_current_binary(session_id=s2.session_id)
 
 *Console output from `triage_and_load_retro_rom` detecting a PlayStation 1 executable (`PS-X EXE` magic), mapping MIPS:LE:32, and auto-restoring cached signatures.*
 
-### Quick test
+### Try these prompts
 
-```bash
-# Install
-pip install ghidra-bizhawk-mcp
-# Requires Ghidra 12.x + pyghidra; see Quick Start above.
-
-# Start the server (stdio — pipe to an MCP client)
-ghidra-bizhawk-mcp
-```
-
-Configure Claude Desktop:
-
-```json
-{
-  "mcpServers": {
-    "ghidra-bizhawk": {
-      "command": "ghidra-bizhawk-mcp",
-      "args": ["--ghidra-dir", "C:\\path\\to\\ghidra"],
-      "env": {}
-    }
-  }
-}
-```
-
-Then ask Claude:
+After configuring your MCP client (see [Configuration](#configuration)), ask your AI agent:
 - *"Load this GBA ROM and decompile the entry point."*
 - *"What functions call 0x8001234 in this NDS binary?"*
 - *"Triage this PSX EXE and trace r0 through the first 20 instructions."*

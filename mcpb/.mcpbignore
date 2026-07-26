@@ -12,7 +12,6 @@ assets/
 mcpb/
 tests/
 *.egg-info/
-server/lib/
 server/venv/
 stderr.txt
 stdout.txt

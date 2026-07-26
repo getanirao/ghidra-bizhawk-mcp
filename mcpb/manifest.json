@@ -1,5 +1,5 @@
 {
-  "manifest_version": "0.4",
+  "manifest_version": "0.3",
   "name": "ghidra-bizhawk-mcp",
   "display_name": "Ghidra BizHawk MCP",
   "version": "1.0.0",
@@ -16,12 +16,13 @@
   "documentation": "https://github.com/getanirao/ghidra-bizhawk-mcp/blob/main/README.md",
   "support": "https://github.com/getanirao/ghidra-bizhawk-mcp/issues",
   "server": {
-    "type": "uv",
+    "type": "python",
     "entry_point": "src/ghidra_bizhawk_mcp/server.py",
     "mcp_config": {
-      "command": "uv",
-      "args": ["run", "--directory", "${__dirname}", "src/ghidra_bizhawk_mcp/server.py"],
+      "command": "python",
+      "args": ["${__dirname}/src/ghidra_bizhawk_mcp/server.py"],
       "env": {
+        "PYTHONPATH": "${__dirname}/server/lib",
         "GHIDRA_INSTALL_DIR": "${user_config.ghidra_install_dir}",
         "BIZHAWK_EXE_PATH": "${user_config.bizhawk_exe_path}",
         "MOCK_MODE": "${user_config.mock_mode}"

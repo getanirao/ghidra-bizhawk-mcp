@@ -26,6 +26,17 @@ Copy-Item -Recurse "$RepoRoot/src/ghidra_bizhawk_mcp" "$SrcDest/ghidra_bizhawk_m
 Get-ChildItem -Recurse $BundleDir -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
 Get-ChildItem -Recurse $BundleDir -Filter "*.pyc" | Remove-Item -Force
 
+# Install runtime dependencies into server/lib/
+Write-Host "Installing Python dependencies..." -ForegroundColor Cyan
+$LibDir = Join-Path $BundleDir "server/lib"
+New-Item -ItemType Directory -Force -Path $LibDir | Out-Null
+pip install --target "$LibDir" --no-compile -e "$RepoRoot" --quiet 2>&1 | Out-Null
+# Remove dev/optional baggage
+Get-ChildItem -Recurse $LibDir -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+Get-ChildItem -Recurse $LibDir -Filter "*.pyc" | Remove-Item -Force -ErrorAction SilentlyContinue
+Get-ChildItem -Recurse $LibDir -Directory -Filter "*.dist-info" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+Write-Host "Dependencies installed" -ForegroundColor Green
+
 # Try mcpb CLI first, fall back to manual ZIP
 $McpbPath = (Get-Command "mcpb" -ErrorAction SilentlyContinue)
 if ($McpbPath) {

@@ -1,0 +1,72 @@
+{
+  "manifest_version": "0.4",
+  "name": "ghidra-bizhawk-mcp",
+  "display_name": "Ghidra BizHawk MCP",
+  "version": "1.0.0",
+  "description": "Unified Ghidra + BizHawk MCP server for static analysis, P-code emulation, multi-console ROM triage, and live emulation.",
+  "long_description": "Connects Ghidra's headless static analysis with BizHawk's live emulation for retro-reversing and firmware analysis. Supports NES, SNES, GBA, NDS, Switch, PSX, Genesis, SMS, Dreamcast and more.\n\n**Features:**\n- Decompilation, disassembly, byte search, and binary diffing\n- P-code micro-emulation via Ghidra's EmulatorHelper\n- Function fingerprinting and signature transfer\n- Live BizHawk emulation control (memory read/write, joypad, frame advance, save states)\n- Retro console platform detection by magic bytes",
+  "author": {
+    "name": "getanirao"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/getanirao/ghidra-bizhawk-mcp.git"
+  },
+  "homepage": "https://github.com/getanirao/ghidra-bizhawk-mcp",
+  "documentation": "https://github.com/getanirao/ghidra-bizhawk-mcp/blob/main/README.md",
+  "support": "https://github.com/getanirao/ghidra-bizhawk-mcp/issues",
+  "server": {
+    "type": "uv",
+    "entry_point": "src/ghidra_bizhawk_mcp/server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run", "--directory", "${__dirname}", "src/ghidra_bizhawk_mcp/server.py"],
+      "env": {
+        "GHIDRA_INSTALL_DIR": "${user_config.ghidra_install_dir}",
+        "BIZHAWK_EXE_PATH": "${user_config.bizhawk_exe_path}",
+        "MOCK_MODE": "${user_config.mock_mode}"
+      }
+    }
+  },
+  "user_config": {
+    "ghidra_install_dir": {
+      "type": "directory",
+      "title": "Ghidra Installation Directory",
+      "description": "Path to your Ghidra installation (e.g. C:\\Program Files\\ghidra_11.2 or /opt/ghidra)",
+      "required": true
+    },
+    "bizhawk_exe_path": {
+      "type": "file",
+      "title": "BizHawk Emulator Path",
+      "description": "Optional path to EmuHawk.exe for live emulation. Leave blank for Ghidra-only mode.",
+      "required": false
+    },
+    "mock_mode": {
+      "type": "boolean",
+      "title": "Mock Mode",
+      "description": "Enable mock mode for zero-dependency environments (disables Ghidra/BizHawk connections)",
+      "default": false,
+      "required": false
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "python": ">=3.10"
+    }
+  },
+  "keywords": [
+    "ghidra",
+    "reverse-engineering",
+    "mcp",
+    "model-context-protocol",
+    "retro-reversing",
+    "p-code",
+    "emulation",
+    "firmware",
+    "bizhawk",
+    "rom-triage"
+  ],
+  "license": "Apache-2.0"
+}

@@ -173,6 +173,37 @@ docker run -i --rm \
 
 The `Dockerfile` bundles Ghidra 11.2 and JDK 17 in a slim Python 3.11 image. Bind-mount your binaries directory at runtime.
 
+### MCP Bundle (MCPB — Claude Desktop / Smithery)
+
+Package as a portable `.mcpb` bundle for one-click install in Claude Desktop or publishing on [Smithery](https://smithery.ai).
+
+**Prerequisites:** Install the MCPB CLI:
+
+```bash
+npm install -g @anthropic-ai/mcpb
+```
+
+**Build the bundle:**
+
+```bash
+# From the repo root
+scripts/build-mcpb.ps1
+```
+
+Or manually with `mcpb`:
+
+```bash
+mcpb pack
+```
+
+The output `ghidra-bizhawk-mcp.mcpb` wraps the server with a `manifest.json` that prompts for `GHIDRA_INSTALL_DIR` (required) and optionally `BIZHAWK_EXE_PATH` at install time — no manual JSON editing.
+
+**Publishing to Smithery:**
+
+```bash
+smithery mcp publish ./dist/ghidra-bizhawk-mcp.mcpb -n getanirao/ghidra-bizhawk-mcp
+```
+
 ### P-code micro-emulation
 
 | Tool | Description |

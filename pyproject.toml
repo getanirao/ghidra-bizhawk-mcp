@@ -9,12 +9,14 @@ description = "A unified Model Context Protocol (MCP) server bridging Ghidra's s
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
+keywords = ["mcp", "ghidra", "reverse-engineering", "model-context-protocol", "bizhawk", "emulation", "retro-reversing", "p-code", "firmware", "rom-triage"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Topic :: Security",
     "Topic :: System :: Emulators",
+    "Framework :: MCP",
 ]
 dependencies = [
     "mcp>=1.0.0",
@@ -24,6 +26,7 @@ ghidra = ["pyghidra>=3.0"]
 
 [project.urls]
 Homepage = "https://github.com/getanirao/ghidra-bizhawk-mcp"
+Repository = "https://github.com/getanirao/ghidra-bizhawk-mcp"
 
 [project.scripts]
 ghidra-bizhawk-mcp = "ghidra_bizhawk_mcp.server:main"

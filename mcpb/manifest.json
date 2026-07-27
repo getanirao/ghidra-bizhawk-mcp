@@ -20,7 +20,9 @@
     "entry_point": "src/ghidra_bizhawk_mcp/server.py",
     "mcp_config": {
       "command": "python",
-      "args": ["${__dirname}/src/ghidra_bizhawk_mcp/server.py"],
+      "args": [
+        "${__dirname}/src/ghidra_bizhawk_mcp/server.py"
+      ],
       "env": {
         "PYTHONPATH": "${__dirname}/server/lib",
         "GHIDRA_INSTALL_DIR": "${user_config.ghidra_install_dir}",
@@ -34,7 +36,8 @@
       "type": "directory",
       "title": "Ghidra Installation Directory",
       "description": "Path to your Ghidra installation (e.g. C:\\Program Files\\ghidra_11.2 or /opt/ghidra)",
-      "required": true
+      "required": false,
+      "default": ""
     },
     "bizhawk_exe_path": {
       "type": "file",
@@ -45,64 +48,1155 @@
     "mock_mode": {
       "type": "boolean",
       "title": "Mock Mode",
-      "description": "Enable mock mode for zero-dependency environments (disables Ghidra/BizHawk connections)",
-      "default": false,
+      "description": "Enable mock mode for zero-dependency environments (disables Ghidra/BizHawk connections). Enabled by default if GHIDRA_INSTALL_DIR is not provided.",
+      "default": true,
       "required": false
     }
   },
   "compatibility": {
     "claude_desktop": ">=0.10.0",
-    "platforms": ["darwin", "win32", "linux"],
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
     "runtimes": {
       "python": ">=3.10"
     }
   },
   "tools_generated": false,
   "tools": [
-    {"name": "analyze_binary", "description": "Import and analyze a binary into a named session", "inputSchema": {"type": "object", "properties": {"binary_path": {"type": "string", "description": "Absolute file path to the target binary for headless static analysis and import."}, "session_id": {"type": "string", "description": "Optional session identifier. Reuses existing session if provided, auto-generates a fresh one if omitted."}}, "required": ["binary_path"]}},
-    {"name": "list_sessions", "description": "List all active session workspaces with their IDs, binary paths, and load times.", "inputSchema": {"type": "object", "properties": {}}},
-    {"name": "close_session", "description": "Close and remove a session workspace, freeing its Ghidra project resources.", "inputSchema": {"type": "object", "properties": {"session_id": {"type": "string", "description": "Identifier of the session to close and remove from the workspace registry."}}, "required": ["session_id"]}},
-    {"name": "decompile_function", "description": "Decompile a function by name or address into human-readable C code.", "inputSchema": {"type": "object", "properties": {"function_name": {"type": "string", "description": "Function name (e.g., 'main') or hex address (e.g., '0x08000100') to decompile."}, "session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}, "required": ["function_name"]}},
-    {"name": "decompile_function_paginated", "description": "Decompile a function with configurable line range and token-budget truncation to prevent context-window exhaustion.", "inputSchema": {"type": "object", "properties": {"function_name": {"type": "string", "description": "Function name or hex address to decompile."}, "line_start": {"type": "integer", "description": "Starting line number for paginated output (0-indexed, inclusive)."}, "line_end": {"type": "integer", "description": "Ending line number for paginated output (exclusive)."}, "max_tokens": {"type": "integer", "description": "Maximum token budget for the decompiled output; truncates when exceeded."}, "summarize": {"type": "boolean", "description": "When true, strips boilerplate local variable declarations and collapses blank lines for a condensed view."}, "session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}, "required": ["function_name"]}},
-    {"name": "get_data_types", "description": "List all data types defined in the loaded program, including structures, unions, enums, and typedefs.", "inputSchema": {"type": "object", "properties": {"session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}}},
-    {"name": "get_cross_references", "description": "Get cross-references to and from a specified memory address.", "inputSchema": {"type": "object", "properties": {"address": {"type": "string", "description": "Memory address in hex format (e.g., '0x08000100') to query for cross-references."}, "max_results": {"type": "integer", "description": "Maximum number of cross-reference results to return."}, "session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}, "required": ["address"]}},
-    {"name": "get_call_graph", "description": "Get the recursive call graph for a function, including both callees and callers.", "inputSchema": {"type": "object", "properties": {"function_name": {"type": "string", "description": "Function name or hex address to generate the call graph for."}, "max_depth": {"type": "integer", "description": "Maximum recursion depth for call graph traversal."}, "session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}, "required": ["function_name"]}},
-    {"name": "analyze_and_decompile_entrypoints", "description": "Bulk decompile all entry points (program entry, exports, main, _start, etc.) in a single call.", "inputSchema": {"type": "object", "properties": {"session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}}},
-    {"name": "rename_symbol", "description": "Rename a function or label at a given address. Changes persist in the Ghidra project database.", "inputSchema": {"type": "object", "properties": {"address": {"type": "string", "description": "Memory address of the symbol to rename in hex format (e.g., '0x08000100')."}, "new_name": {"type": "string", "description": "New symbol name to assign (e.g., 'player_update')."}, "session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}, "required": ["address", "new_name"]}},
-    {"name": "add_comment", "description": "Attach a comment to a code unit at a specified address.", "inputSchema": {"type": "object", "properties": {"address": {"type": "string", "description": "Memory address of the code unit to annotate in hex format."}, "text": {"type": "string", "description": "Comment text content to attach to the code unit."}, "comment_type": {"type": "string", "description": "Type of comment: 'plate' (header), 'pre' (before), 'post' (after), 'eol' (end-of-line), or 'repeatable'."}, "session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}, "required": ["address", "text"]}},
-    {"name": "create_struct", "description": "Create a custom structured data type from a JSON member layout definition.", "inputSchema": {"type": "object", "properties": {"name": {"type": "string", "description": "Name for the new data type (e.g., 'PlayerState')."}, "members": {"type": "array", "description": "Array of member definitions: [{'offset': 0, 'name': 'hp', 'type': 'int'}, ...]. Offsets are optional and auto-calculated if omitted."}, "session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}, "required": ["name", "members"]}},
-    {"name": "retype_variable", "description": "Change a local variable or function parameter type to a new data type.", "inputSchema": {"type": "object", "properties": {"address": {"type": "string", "description": "Address of the function containing the variable to retype."}, "variable_name": {"type": "string", "description": "Name of the local variable or function parameter to retype."}, "new_type": {"type": "string", "description": "New type string (e.g., 'MyStruct*', 'uint32_t', 'undefined4*')."}, "session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}, "required": ["address", "variable_name", "new_type"]}},
-    {"name": "disassemble_range", "description": "Disassemble a specified number of raw instructions at a given address.", "inputSchema": {"type": "object", "properties": {"address": {"type": "string", "description": "Starting memory address for disassembly in hex format."}, "instruction_count": {"type": "integer", "description": "Number of instructions to disassemble."}, "session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}, "required": ["address"]}},
-    {"name": "search_bytes", "description": "Search the entire binary for a hex byte pattern and return matching addresses with context.", "inputSchema": {"type": "object", "properties": {"pattern": {"type": "string", "description": "Hex byte pattern to search for. Space-separated or continuous (e.g., '09 08 00 01' or 'F86D0003')."}, "max_results": {"type": "integer", "description": "Maximum number of matching addresses to return."}, "session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}, "required": ["pattern"]}},
-    {"name": "get_listing_range", "description": "Return a raw hex dump with ASCII representation for a byte range, equivalent to Ghidra's Listing panel.", "inputSchema": {"type": "object", "properties": {"start_address": {"type": "string", "description": "Starting memory address for the hex dump in hex format."}, "byte_count": {"type": "integer", "description": "Number of bytes to dump starting from the start address."}, "columns": {"type": "integer", "description": "Number of hex columns per row in the output display."}, "session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}, "required": ["start_address"]}},
-    {"name": "diff_binaries", "description": "Compare two loaded sessions by function name and body size, returning functions unique to each side and changed functions.", "inputSchema": {"type": "object", "properties": {"session_a": {"type": "string", "description": "Session identifier for the first binary to compare."}, "session_b": {"type": "string", "description": "Session identifier for the second binary to compare."}}, "required": ["session_a", "session_b"]}},
-    {"name": "generate_workspace_report", "description": "Produce a comprehensive Markdown summary of the active workspace including entry points, function count, custom symbols, and comments.", "inputSchema": {"type": "object", "properties": {"session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}}},
-    {"name": "emulate_slice", "description": "Headlessly execute N instructions using Ghidra's P-code EmulatorHelper with configurable initial register state and register tracking.", "inputSchema": {"type": "object", "properties": {"start_address": {"type": "string", "description": "Starting memory address for emulation in hex format."}, "instruction_count": {"type": "integer", "description": "Maximum number of instructions to emulate before stopping."}, "initial_registers": {"type": "object", "description": "Initial register state as a dict of register names to values (e.g., {'r0': 0, 'sp': 0x1000})."}, "track_registers": {"type": "array", "description": "List of register names to track and report at each emulation step (e.g., ['r0', 'r1', 'pc'])."}, "session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}, "required": ["start_address"]}},
-    {"name": "emulate_slice_with_taint", "description": "Execute instructions with automated taint tracking on a specified register, flagging when its value is modified or propagates.", "inputSchema": {"type": "object", "properties": {"start_address": {"type": "string", "description": "Starting memory address for emulation in hex format."}, "instruction_count": {"type": "integer", "description": "Maximum number of instructions to emulate before stopping."}, "initial_registers": {"type": "object", "description": "Initial register state as a dict of register names to values."}, "taint_register": {"type": "string", "description": "Register name to track for taint propagation (e.g., 'r0'). The tool flags every instruction where its value is modified."}, "session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}, "required": ["start_address"]}},
-    {"name": "emulate_slice_with_breakpoints", "description": "Execute instructions until a register condition is met or the instruction count expires.", "inputSchema": {"type": "object", "properties": {"start_address": {"type": "string", "description": "Starting memory address for emulation in hex format."}, "instruction_count": {"type": "integer", "description": "Maximum number of instructions to emulate before giving up."}, "initial_registers": {"type": "object", "description": "Initial register state as a dict of register names to values."}, "break_condition": {"type": "string", "description": "Condition expression to break on (e.g., 'R0==0', 'R1>0xFF', 'R2!=R3', 'PC==0x1234')."}, "session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}, "required": ["start_address"]}},
-    {"name": "calculate_function_fingerprint", "description": "Generate a structural hash for a function based on its variables, parameters, body size, branches, called functions, embedded strings, and numeric constants.", "inputSchema": {"type": "object", "properties": {"func_name": {"type": "string", "description": "Function name or hex address to fingerprint."}, "session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}, "required": ["func_name"]}},
-    {"name": "export_signature_map", "description": "Build a complete hash-to-name signature map for every function in the current binary for reuse across versions.", "inputSchema": {"type": "object", "properties": {"session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}}},
-    {"name": "apply_signature_map", "description": "Match functions by fingerprint against a previously exported signature map and automatically rename all matches.", "inputSchema": {"type": "object", "properties": {"signature_json_map": {"type": "object", "description": "Previously exported signature map JSON object mapping hashes to function names."}, "session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}, "required": ["signature_json_map"]}},
-    {"name": "save_active_binary_signature", "description": "Fingerprint all functions and stash the signature map server-side under a lineage group identifier.", "inputSchema": {"type": "object", "properties": {"lineage_group_id": {"type": "string", "description": "Identifier for the signature stash group (e.g., 'my_firmware_v1'). Maps are stored in ~/.ghidra_bizhawk_mcp/signatures/."}, "session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}, "required": ["lineage_group_id"]}},
-    {"name": "auto_restore_signatures_from_stash", "description": "Load a stashed signature map by lineage group ID and auto-rename every matching function in the current binary.", "inputSchema": {"type": "object", "properties": {"lineage_group_id": {"type": "string", "description": "Identifier for the signature stash group to restore from the server-side cache."}, "session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}, "required": ["lineage_group_id"]}},
-    {"name": "auto_stash_current_binary", "description": "Zero-input auto-stash: hashes the binary's first 4 KB and saves a fingerprint map under that content hash.", "inputSchema": {"type": "object", "properties": {"session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}}},
-    {"name": "auto_restore_current_binary", "description": "Zero-input auto-restore: hashes the binary, looks up a previous stash by content hash, and renames matches automatically.", "inputSchema": {"type": "object", "properties": {"session_id": {"type": "string", "description": "Optional session identifier. Uses the most recently active session if omitted."}}}},
-    {"name": "list_stashed_signature_groups", "description": "List all stashed signature groups currently in the local server-side cache.", "inputSchema": {"type": "object", "properties": {}}},
-    {"name": "triage_and_load_retro_rom", "description": "Detect retro console architecture from ROM magic bytes, load with correct Ghidra language module, and auto-restore cached signatures.", "inputSchema": {"type": "object", "properties": {"rom_path": {"type": "string", "description": "Absolute path to the ROM file for architecture detection and loading. Supports NES, SNES, GBA, NDS, Switch, PSX, Genesis, SMS, Dreamcast."}, "session_id": {"type": "string", "description": "Optional session identifier for the provisioned Ghidra session."}}, "required": ["rom_path"]}},
-    {"name": "bizhawk_connect", "description": "Check TCP connectivity to the BizHawk emulator bridge for live emulation control.", "inputSchema": {"type": "object", "properties": {}}},
-    {"name": "bizhawk_get_info", "description": "Retrieve ROM metadata and emulator capabilities from the connected BizHawk instance.", "inputSchema": {"type": "object", "properties": {}}},
-    {"name": "bizhawk_list_memory_domains", "description": "List all available memory domains exposed by the BizHawk emulator core.", "inputSchema": {"type": "object", "properties": {}}},
-    {"name": "bizhawk_read_memory", "description": "Read a range of bytes from the BizHawk emulated memory at a specified address and domain.", "inputSchema": {"type": "object", "properties": {"address": {"type": "integer", "description": "Memory address to read from, as an unsigned integer offset within the specified domain."}, "size": {"type": "integer", "description": "Number of bytes to read from the specified address."}, "domain": {"type": "string", "description": "Memory domain name to read from (e.g., 'WRAM', 'IWRAM', 'System Bus', 'CART'). Uses the default domain if omitted."}}, "required": ["address"]}},
-    {"name": "bizhawk_write_memory", "description": "Write an array of byte values to the BizHawk emulated memory at a specified address and domain.", "inputSchema": {"type": "object", "properties": {"address": {"type": "integer", "description": "Memory address to write to, as an unsigned integer offset within the specified domain."}, "data": {"type": "array", "description": "Array of byte values (0-255) to write sequentially starting at the specified address."}, "domain": {"type": "string", "description": "Memory domain name to write to (e.g., 'WRAM', 'IWRAM', 'System Bus', 'CART'). Uses the default domain if omitted."}}, "required": ["address", "data"]}},
-    {"name": "bizhawk_press_buttons", "description": "Set joypad button states for a specified player in the BizHawk emulator.", "inputSchema": {"type": "object", "properties": {"buttons": {"type": "object", "description": "Dict of button names to boolean pressed states (e.g., {'A': true, 'B': false, 'Up': true, 'Start': true})."}, "player": {"type": "integer", "description": "Player number (1-indexed) for multi-player scenarios. Defaults to 1."}}, "required": ["buttons"]}},
-    {"name": "bizhawk_frame_advance", "description": "Advance the BizHawk emulator by a specified number of frames.", "inputSchema": {"type": "object", "properties": {"count": {"type": "integer", "description": "Number of emulation frames to advance. Each frame executes one full frame of the emulated system."}}}},
-    {"name": "bizhawk_pause", "description": "Pause the currently running BizHawk emulation.", "inputSchema": {"type": "object", "properties": {}}},
-    {"name": "bizhawk_unpause", "description": "Unpause a previously paused BizHawk emulation session.", "inputSchema": {"type": "object", "properties": {}}},
-    {"name": "bizhawk_reset", "description": "Reset the loaded emulator core in BizHawk, equivalent to a hardware reset.", "inputSchema": {"type": "object", "properties": {}}},
-    {"name": "bizhawk_screenshot", "description": "Capture and save a PNG screenshot of the current BizHawk emulator display to a file.", "inputSchema": {"type": "object", "properties": {"path": {"type": "string", "description": "Absolute file path where the PNG screenshot will be saved."}}, "required": ["path"]}},
-    {"name": "bizhawk_save_state", "description": "Save the current BizHawk emulator state to a file for later restoration.", "inputSchema": {"type": "object", "properties": {"path": {"type": "string", "description": "Absolute file path where the emulator state will be saved."}}, "required": ["path"]}},
-    {"name": "bizhawk_load_state", "description": "Load a previously saved BizHawk emulator state from a file and restore emulation to that point.", "inputSchema": {"type": "object", "properties": {"path": {"type": "string", "description": "Absolute file path to the saved emulator state file to load."}}, "required": ["path"]}},
-    {"name": "bizhawk_launch", "description": "Launch the BizHawk emulator application, load the specified ROM, and establish the bridge connection.", "inputSchema": {"type": "object", "properties": {"rom_path": {"type": "string", "description": "Absolute path to the ROM file for BizHawk to load and begin emulating."}}}}
+    {
+      "name": "ghidra_analyze",
+      "description": "Import and analyze a binary into a named Ghidra session. Creates or replaces a session. Returns session_id, platform info, and function count. Call this first before any other Ghidra analysis tool.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "binary_path": {
+            "type": "string",
+            "description": "Absolute path to the binary file to analyze. Supports ELF, PE, Mach-O, and raw binaries."
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Optional session tracking ID. Auto-generated if omitted. Use to reuse a session across multiple tool calls."
+          }
+        },
+        "required": [
+          "binary_path"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_sessions",
+      "description": "List all active Ghidra session workspaces with their session IDs, binary paths, and load timestamps. Useful before calling ghidra_session_close or ghidra_diff.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Optional session ID to filter by. Returns only the matching session if provided."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_session_close",
+      "description": "Close and remove a Ghidra session workspace, freeing project resources. Cannot be undone. Use ghidra_sessions first to find active session IDs.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Session ID to close. Get active sessions from ghidra.sessions."
+          }
+        },
+        "required": [
+          "session_id"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_decompile",
+      "description": "Decompile a function by name or hex address. Returns decompiled C code. Use after session.analyze has loaded a binary.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "function_name": {
+            "type": "string",
+            "description": "Function name (e.g. 'main', 'FUN_08000100') or hex address (e.g. '0x08000100')"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "function_name"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_decompile_paginated",
+      "description": "Decompile a function with line range, token budget, and optional summarization to prevent context-window exhaustion on large functions. Use for functions over 50 lines.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "function_name": {
+            "type": "string",
+            "description": "Function name or hex address to decompile"
+          },
+          "line_start": {
+            "type": "integer",
+            "description": "1-indexed start line for paginated output"
+          },
+          "line_end": {
+            "type": "integer",
+            "description": "1-indexed end line (exclusive) for paginated output"
+          },
+          "max_tokens": {
+            "type": "integer",
+            "description": "Truncate output to approximately N tokens to stay within context budget"
+          },
+          "summarize": {
+            "type": "boolean",
+            "description": "Set to true to strip boilerplate local variable declarations and collapse blank lines"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "function_name"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_data_types",
+      "description": "List all data types defined in the loaded program, including structures, enums, and typedefs. Useful for understanding the program's type landscape before creating new types.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_cross_references",
+      "description": "Get cross-references to and from a given address. Shows what references the address and what the address references. Useful for understanding how data or code is used across the binary.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "Target address (e.g. '0x401000') to find cross-references for"
+          },
+          "max_results": {
+            "type": "integer",
+            "default": 100,
+            "description": "Maximum number of reference results to return (default 100)"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "address"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_call_graph",
+      "description": "Get the call graph for a function — shows which functions it calls (callees) and which functions call it (callers). Use after ghidra_decompile to understand function relationships.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "function_name": {
+            "type": "string",
+            "description": "Function name or hex address to get the call graph for"
+          },
+          "max_depth": {
+            "type": "integer",
+            "default": 3,
+            "description": "Recursion depth for the call graph (default 3, max 10)"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "function_name"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_decompile_entrypoints",
+      "description": "Composite tool that bulk-decompiles all entry points in one call — program entry, exports, main, _start, etc. Use early in analysis to get an overview of the binary's surface area.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_report",
+      "description": "Produce a Markdown summary of the active workspace — functions, entry points, custom symbols, recovered structures, renamed functions, and comment count. Replaces a GUI CodeBrowser window. Call at the end of a session.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_rename",
+      "description": "Rename a function or label at a given address. Changes are stored in the Ghidra project database. Use to replace auto-generated names with meaningful identifiers.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "Address of the symbol to rename (e.g. '0x08000100')"
+          },
+          "new_name": {
+            "type": "string",
+            "description": "New name for the symbol (alphanumeric + underscores only)"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "address",
+          "new_name"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_comment",
+      "description": "Attach a comment to a code unit at a given address. Supports comment types: plate, pre, post, eol, repeatable. Use to document reverse-engineering findings inline.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "Address to attach the comment to (e.g. '0x08000100')"
+          },
+          "text": {
+            "type": "string",
+            "description": "Comment text content"
+          },
+          "comment_type": {
+            "type": "string",
+            "default": "plate",
+            "description": "Type of comment: 'plate' (boxed header), 'pre' (before code), 'post' (after code), 'eol' (end of line), 'repeatable' (appears at all references)"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "address",
+          "text"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_create_struct",
+      "description": "Create a custom structured data type from a JSON member layout. Each member specifies offset (optional), field name, and type string.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name for the new struct type (e.g. 'PacketHeader')"
+          },
+          "members": {
+            "type": "array",
+            "description": "Array of member field definitions forming the struct layout: [{'name':'length','type':'int'}, ...]. Offsets are optional."
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "name",
+          "members"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_retype",
+      "description": "Change a local variable or function parameter's type annotation in the decompiled view. Use to replace generic types with meaningful types for cleaner decompilation.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "Address inside the function containing the variable to retype"
+          },
+          "variable_name": {
+            "type": "string",
+            "description": "Name of the local variable or parameter to retype"
+          },
+          "new_type": {
+            "type": "string",
+            "description": "New type string (e.g. 'MyStruct*', 'int', 'char[256]')"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "address",
+          "variable_name",
+          "new_type"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_disassemble",
+      "description": "Disassemble N raw instructions at an address. Returns mnemonic, operands, hex bytes, and length for each instruction. Use for precise lower-level inspection when decompiled C is insufficient.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "Starting address for disassembly (e.g. '0x08000100')"
+          },
+          "instruction_count": {
+            "type": "integer",
+            "default": 10,
+            "description": "Number of instructions to disassemble (default 10, max 100)"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "address"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_search",
+      "description": "Search the entire loaded binary for a hex byte pattern. Returns matching addresses with context bytes and any string labels at the hit.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "description": "Hex byte pattern to search for (e.g. '09 08 00 01' with spaces, or 'F86D0003' without)"
+          },
+          "max_results": {
+            "type": "integer",
+            "default": 50,
+            "description": "Maximum number of matches to return (default 50)"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "pattern"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_listing",
+      "description": "Return a raw hex + ASCII dump for a byte range, equivalent to Ghidra's Listing panel. Complements ghidra_disassemble for data regions.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "start_address": {
+            "type": "string",
+            "description": "Starting address for the hex dump (e.g. '0x08000100')"
+          },
+          "byte_count": {
+            "type": "integer",
+            "default": 64,
+            "description": "Total number of bytes to dump (default 64, max 4096)"
+          },
+          "columns": {
+            "type": "integer",
+            "default": 16,
+            "description": "Bytes per row in the hex dump (default 16)"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "start_address"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_diff",
+      "description": "Compare two loaded sessions by function name and body size. Returns functions unique to each side and functions that changed between versions.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_a": {
+            "type": "string",
+            "description": "First session ID (the 'old' binary)"
+          },
+          "session_b": {
+            "type": "string",
+            "description": "Second session ID (the 'new' binary)"
+          }
+        },
+        "required": [
+          "session_a",
+          "session_b"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_emulate",
+      "description": "Headlessly execute a slice of instructions using Ghidra's P-code emulator. Seed initial register values and track value propagation. No debugger or network needed. Works on ARM, x86, MIPS, and any Ghidra-supported architecture.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "start_address": {
+            "type": "string",
+            "description": "Starting address for emulation (e.g. '0x1000')"
+          },
+          "instruction_count": {
+            "type": "integer",
+            "default": 10,
+            "description": "Number of instructions to step through (default 10)"
+          },
+          "initial_registers": {
+            "type": "object",
+            "description": "Register seed values as a JSON object, e.g. {\"r0\": 5, \"r1\": 1095216660}"
+          },
+          "track_registers": {
+            "type": "array",
+            "description": "Subset of register names to log at each step (default: all seeded + PC)"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "start_address"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_emulate_taint",
+      "description": "Execute an instruction slice with automatic taint tracking. Specify a taint register; the tool reports every step where its value is modified or propagates.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "start_address": {
+            "type": "string",
+            "description": "Starting address for emulation (e.g. '0x1000')"
+          },
+          "instruction_count": {
+            "type": "integer",
+            "default": 10,
+            "description": "Number of instructions to step through (default 10)"
+          },
+          "initial_registers": {
+            "type": "object",
+            "description": "Register seed values, e.g. {\"r0\": 5, \"r1\": 0x41424344}"
+          },
+          "taint_register": {
+            "type": "string",
+            "default": "r0",
+            "description": "Register name to track for data lineage (default 'r0')"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "start_address"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_emulate_breakpoints",
+      "description": "Execute instructions until a break condition is met or the instruction count expires. Supports equality (R0==0), inequality (R1>0xFF), not-equal (R2!=R3), and PC address (PC==0x1234).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "start_address": {
+            "type": "string",
+            "description": "Starting address for emulation (e.g. '0x1000')"
+          },
+          "instruction_count": {
+            "type": "integer",
+            "default": 50,
+            "description": "Maximum instructions to execute before timeout (default 50)"
+          },
+          "initial_registers": {
+            "type": "object",
+            "description": "Register seed values for initial emulator state"
+          },
+          "break_condition": {
+            "type": "string",
+            "description": "Break condition string. Examples: R0==0, R1>0xFF, R2!=R3, PC==0x1234"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "start_address"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_fingerprint",
+      "description": "Generate a behavior-based structural hash for a function that survives compiler shuffling across binary versions.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "func_name": {
+            "type": "string",
+            "description": "Function name or address to fingerprint (e.g. 'main' or '0x08000100')"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "func_name"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_export_signatures",
+      "description": "Export a complete {structural_hash -> function_name} signature map for every function in the current binary. Save to reuse across versions.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_apply_signatures",
+      "description": "Scan the current binary, match every function by structural fingerprint against a previously exported signature map, and rename matches automatically.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "signature_json_map": {
+            "type": "object",
+            "description": "Signature map JSON object from a previous ghidra.export_signatures call. Format: {hash: function_name}"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "signature_json_map"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_stash_save",
+      "description": "Fingerprint all functions and stash the signature map server-side under a lineage_group_id label. No JSON files to manage.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "lineage_group_id": {
+            "type": "string",
+            "description": "Group name for this binary family (e.g. 'my_firmware_v1')"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "lineage_group_id"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_stash_restore",
+      "description": "Load a previously stashed signature map by lineage_group_id and auto-rename every matching function in the current session.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "lineage_group_id": {
+            "type": "string",
+            "description": "Group name that was used during ghidra.stash_save"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "lineage_group_id"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_stash_auto_save",
+      "description": "Zero-input auto-stash: hashes the loaded binary's first 4 KB and saves a signature map under that hash. No user input needed.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_stash_auto_restore",
+      "description": "Zero-input auto-restore: hashes the loaded binary, looks up a previously stashed map by content hash, and renames matching functions automatically.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_stash_list",
+      "description": "List all stashed signature groups currently in the local server cache (~/.ghidra_bizhawk_mcp/signatures/).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "lineage_group_id": {
+            "type": "string",
+            "description": "Optional lineage group ID to filter by. Returns details for a specific group if provided."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "ghidra_triage",
+      "description": "Examines raw file magic header signatures to detect retro console architectures (NES, SNES, GBA, NDS, Switch, PSX, Genesis, SMS, Dreamcast), maps correct Ghidra language loaders, and applies signature caching.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "rom_path": {
+            "type": "string",
+            "description": "Absolute system path to the ROM file for architecture detection and loading"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Optional session tracking token for multi-binary context"
+          }
+        },
+        "required": [
+          "rom_path"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "bizhawk_connect",
+      "description": "Check connectivity to BizHawk by pinging the bridge.lua script running inside EmuHawk. Use first before any other bizhawk_* tool.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "timeout": {
+            "type": "integer",
+            "default": 5,
+            "description": "Connection timeout in seconds (default 5). Increase for slow or remote emulator instances."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "bizhawk_info",
+      "description": "Get ROM name, ROM hash, framecount, memory domains, and capabilities from the connected BizHawk instance.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "detail": {
+            "type": "string",
+            "enum": [
+              "summary",
+              "full"
+            ],
+            "default": "summary",
+            "description": "Detail level: 'summary' for key info, 'full' for all available metadata including memory domains."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "bizhawk_memory_domains",
+      "description": "List available memory domains for the loaded emulation core (e.g. WRAM, RAM, EWRAM, VRAM).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "domain": {
+            "type": "string",
+            "description": "Optional domain name to get details for a specific memory domain (e.g. 'WRAM', 'VRAM'). Returns all domains if omitted."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "bizhawk_read",
+      "description": "Read bytes from BizHawk emulated memory. Returns an array of byte values.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "integer",
+            "description": "Starting memory address (decimal or hex, e.g. 0x02000000)"
+          },
+          "size": {
+            "type": "integer",
+            "default": 4,
+            "description": "Number of bytes to read (default 4, max 4096)"
+          },
+          "domain": {
+            "type": "string",
+            "description": "Memory domain (e.g. WRAM, RAM, EWRAM). Use bizhawk.memory_domains to discover names."
+          }
+        },
+        "required": [
+          "address"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "bizhawk_write",
+      "description": "Write bytes to BizHawk emulated memory. Use to patch game state or modify emulated hardware registers in real time.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "integer",
+            "description": "Starting memory address to write to"
+          },
+          "data": {
+            "type": "array",
+            "description": "Array of byte values to write (max 4096). Example: [0x00, 0xFF, 0xAB]"
+          },
+          "domain": {
+            "type": "string",
+            "description": "Optional memory domain (e.g. WRAM, RAM)"
+          }
+        },
+        "required": [
+          "address",
+          "data"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "bizhawk_buttons",
+      "description": "Set joypad button state for a player. Buttons object like {A: true, B: true, Start: true}. Runs once; hold by repeating each frame.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "buttons": {
+            "type": "object",
+            "description": "Button states: {ButtonName: true/false}. Names: A, B, Up, Down, Left, Right, Start, Select, L, R, X, Y"
+          },
+          "player": {
+            "type": "integer",
+            "default": 1,
+            "description": "Player number (1-based)"
+          }
+        },
+        "required": [
+          "buttons"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "bizhawk_frame",
+      "description": "Advance the emulator by N frames. Use to step through execution or apply button inputs over time.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "default": 1,
+            "description": "Number of frames to advance (default 1)"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "bizhawk_pause",
+      "description": "Pause BizHawk emulation. Use before reading memory to prevent values changing.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Optional reason for pausing (e.g. 'reading memory', 'inspecting state'). Logged for debugging."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "bizhawk_unpause",
+      "description": "Unpause BizHawk emulation after a previous pause call.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Optional reason for unpausing (e.g. 'resuming after memory read'). Logged for debugging."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "bizhawk_reset",
+      "description": "Reset the loaded emulation core (reboot the emulated console). All emulated state is lost.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "hard": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, perform a hard reset (reload ROM). If false (default), perform a soft reset."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "bizhawk_screenshot",
+      "description": "Save a PNG screenshot of the current emulator display to a file path.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Absolute file path to save the PNG screenshot (e.g. 'C:/temp/shot.png')"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "bizhawk_save_state",
+      "description": "Save the current emulator state to a file. Captures all CPU registers, memory, and hardware state.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Absolute file path for the savestate (e.g. 'C:/temp/state.bin')"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "bizhawk_load_state",
+      "description": "Load emulator state from a previously saved savestate file. Restores all CPU, memory, and hardware state.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Absolute file path of the savestate to load"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    {
+      "name": "bizhawk_launch",
+      "description": "Launch BizHawk emulator and connect the bridge. Optionally specify a ROM path to load.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "rom_path": {
+            "type": "string",
+            "description": "Optional absolute path to a ROM file to load on startup"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    }
+  ],
+  "prompts": [
+    {
+      "name": "analyze_rom",
+      "description": "Guided ROM analysis workflow: triage a retro ROM, decompile entry points, and run initial analysis in one session.",
+      "arguments": [
+        {
+          "name": "rom_path",
+          "description": "Absolute path to the ROM file to analyze",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "session_workflow",
+      "description": "Demonstrates a full reverse-engineering session: load binary, explore functions, analyze call graphs, and generate a report.",
+      "arguments": [
+        {
+          "name": "binary_path",
+          "description": "Optional path to a binary to analyze. If omitted, demonstrates the general workflow.",
+          "required": false
+        }
+      ]
+    },
+    {
+      "name": "debug_emulation",
+      "description": "P-code emulation debugging workflow: set up emulation context, step through instructions, and analyze register/memory state.",
+      "arguments": [
+        {
+          "name": "address",
+          "description": "Starting address for emulation (e.g. '0x08000100')",
+          "required": true
+        },
+        {
+          "name": "session_id",
+          "description": "Session ID for the loaded binary context",
+          "required": false
+        }
+      ]
+    },
+    {
+      "name": "live_debug",
+      "description": "Combined Ghidra + BizHawk workflow: analyze a ROM in Ghidra, connect to BizHawk emulation, and correlate static decompilation with live memory state.",
+      "arguments": [
+        {
+          "name": "rom_path",
+          "description": "Path to the ROM file for analysis",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "binary_diff",
+      "description": "Compare two binary versions: load both, diff functions, and identify changed or new functions between versions.",
+      "arguments": [
+        {
+          "name": "binary_a",
+          "description": "Path to the first (old) binary version",
+          "required": true
+        },
+        {
+          "name": "binary_b",
+          "description": "Path to the second (new) binary version",
+          "required": true
+        }
+      ]
+    }
   ],
   "keywords": [
     "ghidra",
@@ -114,7 +1208,9 @@
     "emulation",
     "firmware",
     "bizhawk",
-    "rom-triage"
+    "rom-triage",
+    "rom-hacking",
+    "decompilation"
   ],
   "license": "Apache-2.0"
 }

@@ -1,10 +1,12 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.getanirao/ghidra-bizhawk-mcp",
+  "title": "Ghidra BizHawk MCP",
   "version": "1.0.0",
   "description": "Unified Ghidra + BizHawk MCP server for static analysis, P-code emulation, multi-console ROM triage, and live emulation.",
   "author": "getanirao",
   "license": "Apache-2.0",
+  "websiteUrl": "https://github.com/getanirao/ghidra-bizhawk-mcp",
   "repository": {
     "url": "https://github.com/getanirao/ghidra-bizhawk-mcp",
     "type": "git",
@@ -36,6 +38,13 @@
           "name": "GHIDRA_INSTALL_DIR",
           "description": "Absolute path to the Ghidra installation directory",
           "isRequired": true,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "BIZHAWK_EXE_PATH",
+          "description": "Optional path to EmuHawk.exe for live emulation features",
+          "isRequired": false,
           "isSecret": false,
           "format": "string"
         },

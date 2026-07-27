@@ -1,21 +1,21 @@
 # Smithery configuration: https://smithery.ai/docs/build/project-config
+name: ghidra-bizhawk-mcp
+description: "Unified Ghidra + BizHawk MCP server for static analysis, P-code emulation, multi-console ROM triage, and live emulation."
 startCommand:
   type: stdio
   configSchema:
     type: object
-    required:
-      - ghidraInstallDir
     properties:
       ghidraInstallDir:
         type: string
-        description: "Path to your Ghidra installation directory (e.g. /opt/ghidra or C:\\Program Files\\ghidra_11.2)"
+        description: "Path to your Ghidra installation directory (e.g. /opt/ghidra). Leave blank for mock mode."
       bizhawkExePath:
         type: string
         description: "Optional path to EmuHawk.exe for live emulation. Leave blank for Ghidra-only mode."
       mockMode:
         type: boolean
         default: true
-        description: "Enable mock mode for zero-dependency environments (disables Ghidra/BizHawk connections)"
+        description: "Enable mock mode for zero-dependency environments (disables Ghidra/BizHawk connections). Enabled by default."
   commandFunction:
     |-
     (config) => ({
@@ -27,3 +27,5 @@ startCommand:
         MOCK_MODE: config.mockMode ? '1' : '0'
       }
     })
+  exampleConfig:
+    mockMode: true

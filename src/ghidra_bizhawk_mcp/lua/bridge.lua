@@ -123,6 +123,7 @@ function json.decode(s)
 end
 
 local pending_result = nil
+local skip_outer_frameadvance = false
 
 -- Capability detection
 local function has(t, name)
@@ -182,6 +183,21 @@ local function in_domain(domain, fn)
     local r = fn()
     if prev then memory.usememorydomain(prev) end
     return r
+end
+
+local function strip_length_prefix(message)
+    if type(message) ~= "string" then return message end
+    local body = message:match("^%d+%s+(.*)$")
+    if body then return body end
+    return message
+end
+
+local function advance_frames(count)
+    if not CAPS.frameadvance then error("emu.frameadvance not available") end
+    local n = math.max(1, math.floor(tonumber(count or 1) or 1))
+    for _ = 1, n do emu.frameadvance() end
+    skip_outer_frameadvance = true
+    return CAPS.framecount and emu.framecount() or nil
 end
 
 -- Command handlers
@@ -267,6 +283,26 @@ local function cmd_press_buttons(p)
     return true
 end
 
+local function cmd_get_input_state(p)
+    if not CAPS.joypad_get then error("joypad.get not available") end
+    local player = p.player or 1
+    local state = joypad.get(player) or {}
+    return { player = player, buttons = state }
+end
+
+local function cmd_tap_buttons(p)
+    if not CAPS.joypad_set then error("joypad.set not available") end
+    local buttons = assert(p.buttons, "buttons required (table like {A=true, Up=true})")
+    local player = p.player or 1
+    local frames = math.max(1, math.floor(tonumber(p.frames or 1) or 1))
+
+    joypad.set(buttons, player)
+    local framecount = advance_frames(frames)
+    joypad.set({}, player)
+
+    return { player = player, buttons = buttons, frames = frames, framecount = framecount }
+end
+
 local function cmd_pause(p)
     if not CAPS.pause then error("emu.pause not available") end
     emu.pause()
@@ -280,10 +316,8 @@ local function cmd_unpause(p)
 end
 
 local function cmd_frame_advance(p)
-    if not CAPS.frameadvance then error("emu.frameadvance not available") end
-    local n = p.count or 1
-    for _ = 1, n do emu.frameadvance() end
-    return CAPS.framecount and emu.framecount() or nil
+    local n = math.max(1, math.floor(tonumber(p.count or 1) or 1))
+    return advance_frames(n)
 end
 
 local function cmd_reset(p)
@@ -327,6 +361,8 @@ local HANDLERS = {
     read_range          = cmd_read_range,
     write_range         = cmd_write_range,
     press_buttons       = cmd_press_buttons,
+    get_input_state     = cmd_get_input_state,
+    tap_buttons         = cmd_tap_buttons,
     pause               = cmd_pause,
     unpause             = cmd_unpause,
     frame_advance       = cmd_frame_advance,
@@ -353,9 +389,19 @@ end
 
 -- Per-frame round trip
 local function tick()
+    local outgoing
+    if pending_result then
+        outgoing = "RESULT " .. json.encode(pending_result)
+        pending_result = nil
+    else
+        outgoing = "READY"
+    end
+
+    comm.socketServerSend(outgoing .. "\n")
+
     local incoming = comm.socketServerResponse()
     if incoming and type(incoming) == "string" and #incoming > 0 then
-        incoming = incoming:gsub("[\r\n]+$", "")
+        incoming = strip_length_prefix(incoming):gsub("[\r\n]+$", "")
         if incoming ~= "NONE" and #incoming > 0 then
             local parse_ok, cmd = pcall(json.decode, incoming)
             if parse_ok and type(cmd) == "table" then
@@ -370,15 +416,6 @@ local function tick()
             end
         end
     end
-
-    local outgoing
-    if pending_result then
-        outgoing = "RESULT " .. json.encode(pending_result)
-        pending_result = nil
-    else
-        outgoing = "READY"
-    end
-    comm.socketServerSend(outgoing .. "\n")
 end
 
 -- Startup
@@ -420,5 +457,9 @@ while true do
     end
 
     tick()
-    emu.frameadvance()
+    if skip_outer_frameadvance then
+        skip_outer_frameadvance = false
+    else
+        emu.frameadvance()
+    end
 end

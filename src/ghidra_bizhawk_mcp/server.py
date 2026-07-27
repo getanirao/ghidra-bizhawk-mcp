@@ -650,7 +650,7 @@ TOOLS = [
     ),
     types.Tool(
         name="bizhawk_buttons",
-        description="Set joypad button state for a player. Accepts an object like {A: true, B: true, Up: true, Start: true, Select: true}. State applies once per frame; hold buttons across frames by repeating the call each frame advance.",
+        description="Set joypad button state for a player. Accepts an object like {A: true, B: true, Up: true, Start: true, Select: true}. State persists until changed or cleared. Use bizhawk_tap_buttons for a single atomic press/hold/release sequence.",
         inputSchema={
             "type": "object",
             "properties": {
@@ -667,13 +667,44 @@ TOOLS = [
         outputSchema=OUTPUT_SCHEMA_RESULT,
     ),
     types.Tool(
+        name="bizhawk_input_state",
+        description="Read the current joypad state for a player. Returns the active button table as reported by BizHawk, which is useful for verifying that input was applied correctly.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "player": {"type": "integer", "default": 1, "description": "Player number (1-based). Player 1 is the default."},
+            },
+        },
+        annotations=ANNOTATION_READONLY_EXTERNAL,
+        outputSchema=OUTPUT_SCHEMA_RESULT,
+    ),
+    types.Tool(
         name="bizhawk_frame",
-        description="Advance the emulator by N frames. Use to step through execution frame by frame or apply button inputs over time. Call bizhawk.buttons first to set button state, then frame advance to apply it.",
+        description="Advance the emulator by N frames. Use to step through execution frame by frame. If you need to apply input and release it atomically, prefer bizhawk_tap_buttons.",
         inputSchema={
             "type": "object",
             "properties": {
                 "count": {"type": "integer", "default": 1, "description": "Number of frames to advance (default 1). Use higher values to fast-forward through known sequences."},
             },
+        },
+        annotations=ANNOTATION_WRITE,
+        outputSchema=OUTPUT_SCHEMA_RESULT,
+    ),
+    types.Tool(
+        name="bizhawk_tap_buttons",
+        description="Atomically press a set of buttons for a fixed number of frames, then release them. Use for timed inputs such as a one-frame tap or a short hold.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "buttons": {
+                    "type": "object",
+                    "description": "Button states as {ButtonName: true/false}. Valid names: A, B, Up, Down, Left, Right, Start, Select, L, R, X, Y (console-dependent). Example: {A: true, Start: true}",
+                    "additionalProperties": {"type": "boolean"},
+                },
+                "frames": {"type": "integer", "default": 1, "description": "Number of frames to hold the buttons before releasing them."},
+                "player": {"type": "integer", "default": 1, "description": "Player number (1-based). Player 1 is the default."},
+            },
+            "required": ["buttons"],
         },
         annotations=ANNOTATION_WRITE,
         outputSchema=OUTPUT_SCHEMA_RESULT,
@@ -1106,10 +1137,26 @@ async def _dispatch(name: str, args: dict, session):
         })
         return {"buttons": buttons, "player": player}
 
+    if name == "bizhawk_input_state":
+        player = args.get("player", 1)
+        result = await bridge.send_command("get_input_state", {"player": player})
+        return result
+
     if name == "bizhawk_frame":
         count = args.get("count", 1)
         framecount = await bridge.send_command("frame_advance", {"count": count})
         return {"frames_advanced": count, "framecount": framecount}
+
+    if name == "bizhawk_tap_buttons":
+        buttons = args["buttons"]
+        player = args.get("player", 1)
+        frames = args.get("frames", 1)
+        result = await bridge.send_command("tap_buttons", {
+            "buttons": buttons,
+            "player": player,
+            "frames": frames,
+        })
+        return result
 
     if name == "bizhawk_pause":
         await bridge.send_command("pause")

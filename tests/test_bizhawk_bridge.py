@@ -220,12 +220,93 @@ async def test_frame_advance():
         await bridge.stop()
 
 
-async def test_get_info():
-    """Test get_info returns capabilities dict."""
+async def test_input_state():
+    """Test input-state readback."""
     bridge = BizhawkBridge(port=18770)
     await bridge.start()
     try:
         mock = await MockLuaBridge(port=18770).connect()
+        await mock.send("READY")
+        await mock.receive()
+
+        send_task = asyncio.create_task(bridge.send_command("get_input_state", {"player": 1}))
+
+        await mock.send("READY")
+        resp = await mock.receive()
+        cmd = json.loads(resp)
+        assert cmd["method"] == "get_input_state"
+        assert cmd["params"]["player"] == 1
+
+        state_payload = {
+            "id": cmd["id"],
+            "result": {
+                "player": 1,
+                "buttons": {"A": True, "B": False, "Start": True},
+            },
+        }
+        await mock.send("RESULT " + json.dumps(state_payload))
+
+        result = await asyncio.wait_for(send_task, timeout=5.0)
+        assert result["player"] == 1
+        assert result["buttons"]["A"] is True
+        assert result["buttons"]["Start"] is True
+        print("[PASS] get_input_state returned correct data")
+
+    finally:
+        await bridge.stop()
+
+
+async def test_tap_buttons():
+    """Test atomic tap_buttons command."""
+    bridge = BizhawkBridge(port=18771)
+    await bridge.start()
+    try:
+        mock = await MockLuaBridge(port=18771).connect()
+        await mock.send("READY")
+        await mock.receive()
+
+        send_task = asyncio.create_task(
+            bridge.send_command(
+                "tap_buttons",
+                {"buttons": {"A": True, "Start": True}, "frames": 3, "player": 1},
+            )
+        )
+
+        await mock.send("READY")
+        resp = await mock.receive()
+        cmd = json.loads(resp)
+        assert cmd["method"] == "tap_buttons"
+        assert cmd["params"]["buttons"] == {"A": True, "Start": True}
+        assert cmd["params"]["frames"] == 3
+        assert cmd["params"]["player"] == 1
+
+        tap_payload = {
+            "id": cmd["id"],
+            "result": {
+                "player": 1,
+                "buttons": {"A": True, "Start": True},
+                "frames": 3,
+                "framecount": 123,
+            },
+        }
+        await mock.send("RESULT " + json.dumps(tap_payload))
+
+        result = await asyncio.wait_for(send_task, timeout=5.0)
+        assert result["frames"] == 3
+        assert result["framecount"] == 123
+        assert result["buttons"] == {"A": True, "Start": True}
+        print("[PASS] tap_buttons returned correct data")
+
+    finally:
+        await bridge.stop()
+
+
+async def test_get_info():
+    """Test get_info returns capabilities dict."""
+    bridge = BizhawkBridge(port=18772)
+    await bridge.start()
+    try:
+        mock = await MockLuaBridge(port=18772).connect()
         await mock.send("READY")
         await mock.receive()
 
@@ -260,10 +341,10 @@ async def test_get_info():
 
 async def test_error_response():
     """Test that bridge error responses propagate as exceptions."""
-    bridge = BizhawkBridge(port=18771)
+    bridge = BizhawkBridge(port=18773)
     await bridge.start()
     try:
-        mock = await MockLuaBridge(port=18771).connect()
+        mock = await MockLuaBridge(port=18773).connect()
         await mock.send("READY")
         await mock.receive()
 
@@ -291,10 +372,10 @@ async def test_error_response():
 
 async def test_connection_lost_during_command():
     """Test that disconnect raises RuntimeError in waiting command."""
-    bridge = BizhawkBridge(port=18772)
+    bridge = BizhawkBridge(port=18774)
     await bridge.start()
     try:
-        mock = await MockLuaBridge(port=18772).connect()
+        mock = await MockLuaBridge(port=18774).connect()
         await mock.send("READY")
         await mock.receive()
 
@@ -318,10 +399,10 @@ async def test_connection_lost_during_command():
 
 async def test_timeout():
     """Test that send_command times out after 10 seconds."""
-    bridge = BizhawkBridge(port=18773)
+    bridge = BizhawkBridge(port=18775)
     await bridge.start()
     try:
-        mock = await MockLuaBridge(port=18773).connect()
+        mock = await MockLuaBridge(port=18775).connect()
         await mock.send("READY")
         await mock.receive()
 
@@ -353,10 +434,10 @@ async def test_consecutive_commands():
     The mock must drain that NONE before the next cycle, otherwise it
     will parse stale NONE as the next command.
     """
-    bridge = BizhawkBridge(port=18774)
+    bridge = BizhawkBridge(port=18776)
     await bridge.start()
     try:
-        mock = await MockLuaBridge(port=18774).connect()
+        mock = await MockLuaBridge(port=18776).connect()
 
         # Consume initial READY → NONE
         await mock.send("READY")
@@ -392,13 +473,13 @@ async def test_consecutive_commands():
 
 async def test_is_connected():
     """Test the is_connected property."""
-    bridge = BizhawkBridge(port=18775)
+    bridge = BizhawkBridge(port=18777)
     assert not bridge.is_connected, "Should not be connected before start"
 
     await bridge.start()
     assert not bridge.is_connected, "Should not be connected without client"
 
-    mock = await MockLuaBridge(port=18775).connect()
+    mock = await MockLuaBridge(port=18777).connect()
     await mock.send("READY")
     await mock.receive()
     assert bridge.is_connected, "Should be connected after client connects"
@@ -447,6 +528,8 @@ async def main():
         ("test_read_memory", test_read_memory),
         ("test_write_memory", test_write_memory),
         ("test_frame_advance", test_frame_advance),
+        ("test_input_state", test_input_state),
+        ("test_tap_buttons", test_tap_buttons),
         ("test_get_info", test_get_info),
         ("test_error_response", test_error_response),
         ("test_connection_lost_during_command", test_connection_lost_during_command),

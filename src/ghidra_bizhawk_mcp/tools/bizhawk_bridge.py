@@ -92,14 +92,17 @@ class BizhawkBridge:
         if self._writer:
             self._writer.close()
             try:
-                await self._writer.wait_closed()
+                await asyncio.wait_for(self._writer.wait_closed(), timeout=1.0)
             except Exception:
                 pass
             self._writer = None
         # Close TCP server
         if self._server:
             self._server.close()
-            await self._server.wait_closed()
+            try:
+                await asyncio.wait_for(self._server.wait_closed(), timeout=1.0)
+            except Exception:
+                pass
             self._server = None
         # Terminate BizHawk subprocess
         if self._process:

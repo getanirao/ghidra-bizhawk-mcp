@@ -200,6 +200,22 @@ local function advance_frames(count)
     return CAPS.framecount and emu.framecount() or nil
 end
 
+local function buttons_match(state, expected, released)
+    state = state or {}
+    expected = expected or {}
+    for button, value in pairs(expected) do
+        local actual = state[button]
+        if released then
+            if actual == true then
+                return false, button, actual, false
+            end
+        elseif actual ~= value then
+            return false, button, actual, value
+        end
+    end
+    return true
+end
+
 -- Command handlers
 local function cmd_ping(p) return "pong" end
 
@@ -292,15 +308,57 @@ end
 
 local function cmd_tap_buttons(p)
     if not CAPS.joypad_set then error("joypad.set not available") end
+    if not CAPS.joypad_get then error("joypad.get not available for readback") end
     local buttons = assert(p.buttons, "buttons required (table like {A=true, Up=true})")
     local player = p.player or 1
     local frames = math.max(1, math.floor(tonumber(p.frames or 1) or 1))
 
     joypad.set(buttons, player)
-    local framecount = advance_frames(frames)
-    joypad.set({}, player)
+    local pressed_state = joypad.get(player) or {}
+    local press_ok, press_button, press_actual, press_expected = buttons_match(pressed_state, buttons, false)
+    if not press_ok then
+        error(string.format(
+            "joypad readback mismatch after press for %s: expected %s, got %s",
+            tostring(press_button),
+            tostring(press_expected),
+            tostring(press_actual)
+        ))
+    end
 
-    return { player = player, buttons = buttons, frames = frames, framecount = framecount }
+    local framecount = advance_frames(frames)
+    local held_state = joypad.get(player) or {}
+    local hold_ok, hold_button, hold_actual, hold_expected = buttons_match(held_state, buttons, false)
+    if not hold_ok then
+        error(string.format(
+            "joypad readback mismatch after hold for %s: expected %s, got %s",
+            tostring(hold_button),
+            tostring(hold_expected),
+            tostring(hold_actual)
+        ))
+    end
+    joypad.set({}, player)
+    local released_state = joypad.get(player) or {}
+    local release_ok, release_button, release_actual, release_expected = buttons_match(released_state, buttons, true)
+    if not release_ok then
+        error(string.format(
+            "joypad readback mismatch after release for %s: expected %s, got %s",
+            tostring(release_button),
+            tostring(release_expected),
+            tostring(release_actual)
+        ))
+    end
+    local release_framecount = advance_frames(1)
+
+    return {
+        player = player,
+        buttons = buttons,
+        frames = frames,
+        framecount = framecount,
+        release_framecount = release_framecount,
+        pressed_readback = pressed_state,
+        held_readback = held_state,
+        released_readback = released_state,
+    }
 end
 
 local function cmd_pause(p)
@@ -397,18 +455,26 @@ local function tick()
         outgoing = "READY"
     end
 
-    comm.socketServerSend(outgoing .. "\n")
+    local send_result = comm.socketServerSend(outgoing .. "\n")
+    console.log(string.format("[ghidra-bizhawk-mcp] sent %s (send=%s)", outgoing, tostring(send_result)))
+    if comm.socketServerSuccessful then
+        console.log(string.format("[ghidra-bizhawk-mcp] socketServerSuccessful=%s", tostring(comm.socketServerSuccessful())))
+    end
 
     local incoming = comm.socketServerResponse()
+    console.log(string.format("[ghidra-bizhawk-mcp] socketServerResponse=%s", tostring(incoming)))
     if incoming and type(incoming) == "string" and #incoming > 0 then
         incoming = strip_length_prefix(incoming):gsub("[\r\n]+$", "")
         if incoming ~= "NONE" and #incoming > 0 then
             local parse_ok, cmd = pcall(json.decode, incoming)
             if parse_ok and type(cmd) == "table" then
+                console.log(string.format("[ghidra-bizhawk-mcp] parsed command id=%s method=%s", tostring(cmd.id), tostring(cmd.method)))
                 local result, rpc_err = dispatch(cmd)
                 if rpc_err then
+                    console.log(string.format("[ghidra-bizhawk-mcp] command id=%s error=%s", tostring(cmd.id), tostring(rpc_err.message)))
                     pending_result = { id = cmd.id, error = rpc_err }
                 else
+                    console.log(string.format("[ghidra-bizhawk-mcp] command id=%s result=%s", tostring(cmd.id), json.encode(result)))
                     pending_result = { id = cmd.id, result = result }
                 end
             else

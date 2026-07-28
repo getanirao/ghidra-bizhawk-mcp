@@ -53,6 +53,38 @@ def _sid(arguments: dict) -> str | None:
     return arguments.get("session_id")
 
 
+def _structured_content(result):
+    if isinstance(result, dict):
+        return result
+    return {"result": result}
+
+
+def _tool_success(result) -> types.CallToolResult:
+    structured = _structured_content(result)
+    return types.CallToolResult(
+        content=[types.TextContent(type="text", text=_format_result(structured))],
+        structuredContent=structured,
+        isError=False,
+    )
+
+
+def _tool_error(tool_name: str, exc: Exception) -> types.CallToolResult:
+    message = str(exc)
+    structured = {
+        "ok": False,
+        "tool": tool_name,
+        "error": {
+            "type": exc.__class__.__name__,
+            "message": message,
+        },
+    }
+    return types.CallToolResult(
+        content=[types.TextContent(type="text", text=f"Error: {message}")],
+        structuredContent=structured,
+        isError=True,
+    )
+
+
 # ── Prompts ─────────────────────────────────────────────────────────
 PROMPTS = [
     types.Prompt(
@@ -906,13 +938,13 @@ async def serve(ghidra_dir: str | None = None):
         raise ValueError(f"Unknown resource: {uri}")
 
     @server.call_tool()
-    async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
+    async def call_tool(name: str, arguments: dict) -> types.CallToolResult:
         try:
             result = await _dispatch(name, arguments, session)
-            return [types.TextContent(type="text", text=_format_result(result))]
+            return _tool_success(result)
         except Exception as e:
             logger.exception("Tool call failed")
-            return [types.TextContent(type="text", text=f"Error: {e}")]
+            return _tool_error(name, e)
 
     try:
         async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
@@ -1093,12 +1125,32 @@ async def _dispatch(name: str, args: dict, session):
 
     if name == "bizhawk_connect":
         result = await bridge.send_command("ping")
-        return {"status": "connected", "result": result}
+        return {
+            "status": "connected",
+            "transport": {
+                "tcp_connected": True,
+                "lua_responsive": True,
+            },
+            "result": result,
+        }
 
     if name == "bizhawk_launch":
         rom_path = args.get("rom_path")
-        await bridge.ensure_connected(rom_path)
-        return {"status": "connected", "emu": bridge._emu_path, "rom": rom_path}
+        if rom_path:
+            rom_path = os.path.abspath(rom_path)
+            if not os.path.isfile(rom_path):
+                raise FileNotFoundError(f"ROM file not found: {rom_path}")
+        ping_result = await bridge.ensure_responsive(rom_path)
+        return {
+            "status": "ready",
+            "transport": {
+                "tcp_connected": True,
+                "lua_responsive": True,
+            },
+            "emu": bridge._emu_path,
+            "rom": rom_path,
+            "ping": ping_result,
+        }
 
     if name == "bizhawk_info":
         return await bridge.send_command("get_info")

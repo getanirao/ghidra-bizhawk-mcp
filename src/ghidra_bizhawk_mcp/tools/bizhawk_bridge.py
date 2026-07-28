@@ -41,6 +41,7 @@ class BizhawkBridge:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._emu_path: str | None = None
         self._process: subprocess.Popen | None = None
+        self._lua_responsive = False
 
     @staticmethod
     def find_emu_path() -> str | None:
@@ -83,6 +84,7 @@ class BizhawkBridge:
 
     async def stop(self):
         self._connected = False
+        self._lua_responsive = False
         # Cancel any pending command
         if self._pending_future and not self._pending_future.done():
             self._pending_future.cancel()
@@ -118,6 +120,19 @@ class BizhawkBridge:
             self._process = None
         self._reader = None
 
+    async def _wait_for_connection(self, timeout: float = 30.0):
+        """Wait for the BizHawk TCP bridge to connect."""
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        while True:
+            if self._connected:
+                return
+            if loop.time() >= deadline:
+                raise TimeoutError(
+                    f"BizHawk started but bridge did not connect within {timeout:.0f} seconds"
+                )
+            await asyncio.sleep(0.1)
+
     async def ensure_connected(self, rom_path: str | None = None):
         """Auto-launch BizHawk if not connected. Blocks until bridge connects."""
         if self._connected:
@@ -130,8 +145,29 @@ class BizhawkBridge:
         self._emu_path = emu
         await self.launch(emu, rom_path)
 
+    async def ensure_responsive(self, rom_path: str | None = None):
+        """Auto-launch BizHawk if needed and verify the Lua bridge answers ping."""
+        await self.ensure_connected(rom_path)
+        logger.info("Verifying BizHawk Lua bridge responsiveness with ping")
+        try:
+            pong = await self.send_command("ping", timeout=10.0)
+        except Exception:
+            logger.exception("BizHawk TCP connection exists but Lua bridge did not respond to ping")
+            await self.stop()
+            raise
+        if pong != "pong":
+            await self.stop()
+            raise RuntimeError(f"BizHawk bridge returned unexpected ping response: {pong!r}")
+        self._lua_responsive = True
+        logger.info("BizHawk Lua bridge responsive: %s", pong)
+        return pong
+
     async def launch(self, emu_path: str, rom_path: str | None = None):
         """Launch EmuHawk with the bridge Lua script and wait for connection."""
+        if rom_path:
+            rom_path = os.path.abspath(rom_path)
+            if not os.path.isfile(rom_path):
+                raise FileNotFoundError(f"ROM file not found: {rom_path}")
         if self._connected:
             return
         lua = self._bridge_lua_path()
@@ -139,24 +175,26 @@ class BizhawkBridge:
             raise RuntimeError("bridge.lua not found in package")
         args = [emu_path, f"--socket_ip={self._host}", f"--socket_port={self._port}", f"--lua={lua}"]
         if rom_path:
-            args.append(os.path.abspath(rom_path))
+            args.append(rom_path)
         logger.info("Launching BizHawk: %s", " ".join(args))
         try:
             self._process = subprocess.Popen(args, shell=False)
         except FileNotFoundError:
             raise RuntimeError(f"EmuHawk executable not found: {emu_path}")
-        # Wait up to 30s for bridge to connect
-        for _ in range(300):
-            if self._connected:
-                return
-            await asyncio.sleep(0.1)
-        raise TimeoutError("BizHawk started but bridge did not connect within 30s")
+        try:
+            logger.info("Waiting for BizHawk TCP bridge connection")
+            await self._wait_for_connection()
+            logger.info("BizHawk TCP bridge connected")
+        except Exception:
+            logger.exception("BizHawk launch failed before Lua bridge became reachable")
+            await self.stop()
+            raise
 
     @property
     def is_connected(self) -> bool:
         return self._connected
 
-    async def send_command(self, method: str, params: dict | None = None) -> dict:
+    async def send_command(self, method: str, params: dict | None = None, timeout: float = 10.0) -> dict:
         """Send a command to BizHawk and wait for the result (≈2 frames ≈33ms).
 
         Raises RuntimeError if the bridge is not connected or a command is
@@ -174,13 +212,14 @@ class BizhawkBridge:
 
         self._pending_cmd = cmd
         self._pending_future = future
+        logger.info("Queued BizHawk command id=%s method=%s", cmd["id"], method)
 
         try:
-            return await asyncio.wait_for(future, timeout=10.0)
+            return await asyncio.wait_for(future, timeout=timeout)
         except asyncio.TimeoutError:
             self._pending_future = None
             self._pending_cmd = None
-            raise TimeoutError("BizHawk did not respond within 10 seconds — is bridge.lua still polling?")
+            raise TimeoutError(f"BizHawk did not respond within {timeout:.0f} seconds — is bridge.lua still polling?")
 
     # ── Internal: TCP handler ────────────────────────────────────────────
 
@@ -188,24 +227,32 @@ class BizhawkBridge:
         self._reader = reader
         self._writer = writer
         self._connected = True
+        self._lua_responsive = False
         logger.info("BizHawk client connected")
 
         try:
             while True:
                 line = await reader.readline()
                 if not line:
+                    logger.info("BizHawk client disconnected: EOF from socket")
                     break
 
                 line = line.decode("utf-8", errors="replace").rstrip("\r\n")
+                logger.debug("BizHawk raw line received: %s", line)
 
                 if line == "READY":
+                    logger.debug("BizHawk bridge READY received")
                     await self._send_next()
 
                 elif line.startswith("RESULT "):
+                    logger.debug("BizHawk bridge RESULT received")
                     self._handle_result(line[7:])
                     await self._send_next()
+                else:
+                    logger.warning("BizHawk bridge sent unexpected line: %s", line)
 
         except (asyncio.CancelledError, ConnectionResetError, BrokenPipeError, OSError):
+            logger.info("BizHawk client disconnected: transport error")
             pass
         finally:
             self._connected = False
@@ -221,16 +268,22 @@ class BizhawkBridge:
         try:
             msg = json.loads(json_str)
         except json.JSONDecodeError:
+            logger.warning("BizHawk RESULT parse error: %s", json_str)
             return
         if self._pending_future and not self._pending_future.done():
+            logger.debug("BizHawk returned result for id=%s", msg.get("id"))
             if "error" in msg:
                 err_info = msg["error"]
                 self._pending_future.set_exception(
                     RuntimeError(err_info.get("message", str(err_info)))
                 )
+                logger.error("BizHawk command id=%s failed: %s", msg.get("id"), err_info)
             else:
                 self._pending_future.set_result(msg.get("result"))
+                logger.debug("BizHawk command id=%s succeeded", msg.get("id"))
             self._pending_future = None
+        else:
+            logger.warning("BizHawk returned RESULT with no pending command: %s", json_str)
 
     async def _send_next(self):
         cmd = self._pending_cmd
@@ -238,9 +291,11 @@ class BizhawkBridge:
             self._pending_cmd = None
             cmd_json = json.dumps(cmd)
             msg = f"{len(cmd_json)} {cmd_json}\n"
+            logger.debug("Sending BizHawk command id=%s method=%s", cmd.get("id"), cmd.get("method"))
             self._writer.write(msg.encode("utf-8"))
             await self._writer.drain()
         else:
+            logger.debug("Sending BizHawk READY/NONE heartbeat")
             self._writer.write(b"4 NONE\n")
             await self._writer.drain()
 

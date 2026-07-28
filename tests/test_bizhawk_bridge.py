@@ -8,10 +8,17 @@ connection-loss handling.
 import asyncio
 import json
 import logging
+import os
 import sys
+import types as py_types
 
 sys.path.insert(0, "src")
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".venv", "Lib", "site-packages"))
 
+for _name in ("pywintypes", "win32api", "win32con", "win32job"):
+    sys.modules.setdefault(_name, py_types.ModuleType(_name))
+
+import ghidra_bizhawk_mcp.server as server_mod
 from ghidra_bizhawk_mcp.tools.bizhawk_bridge import BizhawkBridge
 
 logging.basicConfig(level=logging.DEBUG, stream=sys.stderr,
@@ -301,6 +308,58 @@ async def test_tap_buttons():
         await bridge.stop()
 
 
+async def test_ensure_responsive():
+    """Test that launch returns only after a ping response."""
+    bridge = BizhawkBridge(port=18778)
+    calls = []
+
+    async def fake_ensure_connected(rom_path=None):
+        calls.append(("ensure_connected", rom_path))
+        bridge._connected = True
+
+    async def fake_send_command(method, params=None, timeout=10.0):
+        calls.append(("send_command", method, timeout, params or {}))
+        return "pong"
+
+    bridge.ensure_connected = fake_ensure_connected  # type: ignore[method-assign]
+    bridge.send_command = fake_send_command  # type: ignore[method-assign]
+
+    result = await bridge.ensure_responsive("C:/fake/rom.gba")
+    assert result == "pong"
+    assert calls == [
+        ("ensure_connected", "C:/fake/rom.gba"),
+        ("send_command", "ping", 10.0, {}),
+    ]
+    print("[PASS] ensure_responsive waits for ping before returning")
+
+
+async def test_bizhawk_launch_rejects_missing_rom():
+    """Test that launch fails immediately for missing ROM paths."""
+    missing_rom = os.path.join(os.environ.get("TEMP", r"C:\Temp"), "definitely_missing_rom.gba")
+    if os.path.exists(missing_rom):
+        os.remove(missing_rom)
+
+    with pytest_raises(FileNotFoundError) as exc_info:
+        await server_mod._dispatch("bizhawk_launch", {"rom_path": missing_rom}, session=None)
+    assert "ROM file not found" in str(exc_info.value)
+    print("[PASS] bizhawk_launch rejects missing ROM paths")
+
+
+async def test_tool_result_helpers():
+    """Test that tool results keep structured content and errors preserve messages."""
+    success = server_mod._tool_success({"status": "ok", "value": 42})
+    assert success.structuredContent == {"status": "ok", "value": 42}
+    assert not success.isError
+    assert '"status": "ok"' in success.content[0].text
+
+    error = server_mod._tool_error("bizhawk_launch", RuntimeError("bridge timed out"))
+    assert error.isError
+    assert error.structuredContent["tool"] == "bizhawk_launch"
+    assert error.structuredContent["error"]["message"] == "bridge timed out"
+    assert "bridge timed out" in error.content[0].text
+    print("[PASS] tool result helpers preserve structured content and errors")
+
+
 async def test_get_info():
     """Test get_info returns capabilities dict."""
     bridge = BizhawkBridge(port=18772)
@@ -530,6 +589,9 @@ async def main():
         ("test_frame_advance", test_frame_advance),
         ("test_input_state", test_input_state),
         ("test_tap_buttons", test_tap_buttons),
+        ("test_ensure_responsive", test_ensure_responsive),
+        ("test_bizhawk_launch_rejects_missing_rom", test_bizhawk_launch_rejects_missing_rom),
+        ("test_tool_result_helpers", test_tool_result_helpers),
         ("test_get_info", test_get_info),
         ("test_error_response", test_error_response),
         ("test_connection_lost_during_command", test_connection_lost_during_command),

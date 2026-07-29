@@ -837,7 +837,6 @@ async def serve(ghidra_dir: str | None = None):
     if not mock_mode:
         from .ghidra_bridge import GhidraSession
         session = GhidraSession(ghidra_dir=ghidra_dir or os.environ.get("GHIDRA_INSTALL_DIR"))
-        await get_bridge().start()
         asyncio.create_task(_boot_jvm(session))
     else:
         logger.info("MOCK_MODE=1 — skipping GhidraSession import, bridge, and JVM boot")

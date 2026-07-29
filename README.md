@@ -21,36 +21,40 @@ A unified MCP (Model Context Protocol) server bridging Ghidra's headless static 
 ┌─────────────────────────────────────────────────────────────────┐
 │                        MCP Client (Claude / Cursor)              │
 │  sends JSON-RPC over stdin/stdout                                │
-└──────────────┬──────────────────────────────────────┬───────────┘
-               │                                      │
-               ▼                                      ▼
-┌──────────────────────────────┐    ┌──────────────────────────────┐
-│     ghidra-bizhawk-mcp       │    │     BizHawk Lua Bridge       │
-│  ┌─────────────────────────┐ │    │  ┌────────────────────────┐ │
-│  │   MCP Server (server.py)│ │    │  │  bridge.lua            │ │
-│  │   tool registry, stdio  │─┼────┼─>│  memory read/write     │ │
-│  │   dispatch              │ │    │  │  joypad, savestate     │ │
-│  └───────────┬─────────────┘ │    │  │  frame advance         │ │
-│              │               │    │  └────────────────────────┘ │
-│  ┌───────────▼─────────────┐ │    └──────────────────────────────┘
-│  │   GhidraSession         │ │
-│  │   pyghidra JVM bridge   │ │
-│  │   decompile, search,    │ │
-│  │   emulate, fingerprint  │ │
-│  │   ┌───────────────────┐ │ │
-│  │   │ Ghidra JVM (Java) │ │ │
-│  │   │ EmulatorHelper    │ │ │
-│  │   │ SLEIGH / P-code   │ │ │
-│  │   └───────────────────┘ │ │
-│  └─────────────────────────┘ │
-└──────────────────────────────┘
+└─────────────────────────────┬───────────────────────────────────┘
+                              │
+                              ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                    ghidra-bizhawk-mcp                            │
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │   MCP Server (server.py) — tool registry, stdio dispatch    ││
+│  └──────────────────────────┬──────────────────────────────────┘│
+│                             │                                   │
+│              ┌──────────────┴──────────────┐                    │
+│              ▼                              ▼                   │
+│  ┌────────────────────┐    ┌──────────────────────────────┐    │
+│  │   GhidraSession    │    │   BizhawkBridge              │    │
+│  │   pyghidra → JVM   │    │   TCP client → localhost:8766│    │
+│  │   decompile, etc.  │    └──────────────┬───────────────┘    │
+│  └────────────────────┘                   │                     │
+└───────────────────────────────────────────┼─────────────────────┘
+                                            │ TCP (newline-delimited JSON)
+                                            ▼
+                              ┌──────────────────────────────┐
+                              │   BizHawk (EmuHawk.exe)       │
+                              │   built-in socket server      │
+                              │   ┌────────────────────────┐ │
+                              │   │  bridge.lua            │ │
+                              │   │  memory read/write     │ │
+                              │   │  joypad, savestate     │ │
+                              │   │  frame advance         │ │
+                              │   └────────────────────────┘ │
+                              └──────────────────────────────┘
 ```
-
-All communication is **local stdio only** — there is no HTTP listener, no TCP socket, and no network exposure.
 
 ## Security Model
 
-This server communicates **exclusively over standard process stdio** — there is no HTTP socket, no TCP listener, and no network interface exposed. It is inherently immune to LAN/WAN exposure, SSRF, and unauthenticated API attacks. The only way to interact with it is for an MCP client to launch it as a subprocess and communicate via stdin/stdout.
+The MCP server communicates with the MCP client **exclusively over stdin/stdout** — no HTTP or network listener. The only local TCP socket is a **loopback-only** connection (`127.0.0.1:8766`) between the server and BizHawk's built-in Lua socket server. This is used solely for live-emulation features and is not exposed to the network.
 
 ## Hardware & Retro Ecosystem Integration
 
@@ -386,15 +390,7 @@ auto_restore_current_binary(session_id=s2.session_id)
 # → 142 functions renamed, zero manual JSON handling
 ```
 
-## Demo
 
-![Claude Desktop requesting a GBA ROM triage and getting a decompiled function back](assets/demo-claude-triage.png)
-
-*Claude Desktop: "Decompile the entry point of this GBA ROM and trace r0 propagation" — the server auto-detects the ARMv4t language, provisions a session, and returns decompiled C + taint trace.*
-
-![Terminal output showing triage_and_load_retro_rom detecting a PSX EXE](assets/demo-terminal-triage.png)
-
-*Console output from `triage_and_load_retro_rom` detecting a PlayStation 1 executable (`PS-X EXE` magic), mapping MIPS:LE:32, and auto-restoring cached signatures.*
 
 ### Try these prompts
 
@@ -419,7 +415,7 @@ ghidra-bizhawk-mcp/
     │   └── bridge.lua     # BizHawk-side Lua bridge for live emulation
     └── tools/
         ├── __init__.py
-        ├── bizhawk_bridge.py  # TCP server bridging MCP ↔ BizHawk
+        ├── bizhawk_bridge.py  # TCP client connecting MCP ↔ BizHawk
         └── ...
 ```
 

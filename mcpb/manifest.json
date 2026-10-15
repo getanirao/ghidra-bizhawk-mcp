@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "ghidra-bizhawk-mcp",
   "display_name": "Ghidra BizHawk MCP",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Unified Ghidra + BizHawk MCP server for static analysis, P-code emulation, multi-console ROM triage, and live emulation.",
   "long_description": "Connects Ghidra's headless static analysis with BizHawk's live emulation for retro-reversing and firmware analysis. Supports NES, SNES, GBA, NDS, Switch, PSX, Genesis, SMS, Dreamcast and more.\n\n**Features:**\n- Decompilation, disassembly, byte search, and binary diffing\n- P-code micro-emulation via Ghidra's EmulatorHelper\n- Function fingerprinting and signature transfer\n- Live BizHawk emulation control (memory read/write, joypad, frame advance, save states)\n- Retro console platform detection by magic bytes",
   "author": {

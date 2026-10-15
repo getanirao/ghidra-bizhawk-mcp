@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ghidra-bizhawk-mcp"
-version = "1.0.0"
+version = "1.1.0"
 description = "A unified Model Context Protocol (MCP) server bridging Ghidra's static analysis with BizHawk's live emulation for retro-reversing and bare-metal firmware analysis."
 readme = "README.md"
 requires-python = ">=3.10"

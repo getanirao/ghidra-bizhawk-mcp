@@ -113,8 +113,11 @@ function json.decode(s)
         elseif c == 'f' then pos = pos + 5; return false
         elseif c == 'n' then pos = pos + 4; return nil
         else
-            local _, e = s:find('^[-]?[0-9]+%.?[0-9]*([eE][+-]?[0-9]+)?', pos)
-            if e then local n = tonumber(s:sub(pos,e)); pos = e + 1; return n end
+            local number = s:sub(pos):match('^[-]?[0-9]+%.?[0-9]*[eE]?[+-]?[0-9]*')
+            if number and number ~= '' then
+                local n = tonumber(number)
+                if n then pos = pos + #number; return n end
+            end
             ok = false; return nil
         end
     end
@@ -124,6 +127,8 @@ end
 
 local pending_result = nil
 local skip_outer_frameadvance = false
+local active_buttons = {}
+local tap_operation = nil
 
 -- Capability detection
 local function has(t, name)
@@ -204,12 +209,12 @@ local function buttons_match(state, expected, released)
     state = state or {}
     expected = expected or {}
     for button, value in pairs(expected) do
-        local actual = state[button]
+        local actual = state[button] == true
         if released then
-            if actual == true then
+            if actual then
                 return false, button, actual, false
             end
-        elseif actual ~= value then
+        elseif actual ~= (value == true) then
             return false, button, actual, value
         end
     end
@@ -295,14 +300,16 @@ end
 local function cmd_press_buttons(p)
     if not CAPS.joypad_set then error("joypad.set not available") end
     local buttons = assert(p.buttons, "buttons required (table like {A=true, Up=true})")
-    joypad.set(buttons, p.player or 1)
+    for button, pressed in pairs(buttons) do
+        active_buttons[button] = pressed == true
+    end
     return true
 end
 
 local function cmd_get_input_state(p)
     if not CAPS.joypad_get then error("joypad.get not available") end
     local player = p.player or 1
-    local state = joypad.get(player) or {}
+    local state = joypad.get() or {}
     return { player = player, buttons = state }
 end
 
@@ -312,53 +319,11 @@ local function cmd_tap_buttons(p)
     local buttons = assert(p.buttons, "buttons required (table like {A=true, Up=true})")
     local player = p.player or 1
     local frames = math.max(1, math.floor(tonumber(p.frames or 1) or 1))
-
-    joypad.set(buttons, player)
-    local pressed_state = joypad.get(player) or {}
-    local press_ok, press_button, press_actual, press_expected = buttons_match(pressed_state, buttons, false)
-    if not press_ok then
-        error(string.format(
-            "joypad readback mismatch after press for %s: expected %s, got %s",
-            tostring(press_button),
-            tostring(press_expected),
-            tostring(press_actual)
-        ))
+    if tap_operation then error("a button tap is already in progress") end
+    for button, pressed in pairs(buttons) do
+        if pressed == true then active_buttons[button] = true end
     end
-
-    local framecount = advance_frames(frames)
-    local held_state = joypad.get(player) or {}
-    local hold_ok, hold_button, hold_actual, hold_expected = buttons_match(held_state, buttons, false)
-    if not hold_ok then
-        error(string.format(
-            "joypad readback mismatch after hold for %s: expected %s, got %s",
-            tostring(hold_button),
-            tostring(hold_expected),
-            tostring(hold_actual)
-        ))
-    end
-    joypad.set({}, player)
-    local released_state = joypad.get(player) or {}
-    local release_ok, release_button, release_actual, release_expected = buttons_match(released_state, buttons, true)
-    if not release_ok then
-        error(string.format(
-            "joypad readback mismatch after release for %s: expected %s, got %s",
-            tostring(release_button),
-            tostring(release_expected),
-            tostring(release_actual)
-        ))
-    end
-    local release_framecount = advance_frames(1)
-
-    return {
-        player = player,
-        buttons = buttons,
-        frames = frames,
-        framecount = framecount,
-        release_framecount = release_framecount,
-        pressed_readback = pressed_state,
-        held_readback = held_state,
-        released_readback = released_state,
-    }
+    return { _deferred_tap = true, player = player, buttons = buttons, frames = frames }
 end
 
 local function cmd_pause(p)
@@ -445,6 +410,59 @@ local function dispatch(cmd)
     return result, nil
 end
 
+local function finish_tap_frame()
+    if not tap_operation then return end
+    local state = joypad.get() or {}
+    if tap_operation.stage == "hold" then
+        tap_operation.held_frames = tap_operation.held_frames + 1
+        if tap_operation.held_frames == 1 then
+            tap_operation.pressed_readback = state
+            local ok, button, actual, expected = buttons_match(state, tap_operation.buttons, false)
+            if not ok then
+                tap_operation.error = string.format(
+                    "joypad readback mismatch after press for %s: expected %s, got %s",
+                    tostring(button), tostring(expected), tostring(actual)
+                )
+            end
+        end
+        tap_operation.held_readback = state
+        if tap_operation.held_frames >= tap_operation.frames then
+            tap_operation.framecount = CAPS.framecount and emu.framecount() or nil
+            for button in pairs(tap_operation.buttons) do active_buttons[button] = false end
+            tap_operation.stage = "release"
+        end
+        return
+    end
+
+    tap_operation.released_readback = state
+    local released, button, actual = buttons_match(state, tap_operation.buttons, true)
+    local op = tap_operation
+    tap_operation = nil
+    if not released and not op.error then
+        op.error = string.format(
+            "joypad readback mismatch after release for %s: expected false, got %s",
+            tostring(button), tostring(actual)
+        )
+    end
+    if op.error then
+        pending_result = { id = op.id, error = { code = -32603, message = op.error } }
+    else
+        pending_result = {
+            id = op.id,
+            result = {
+                player = op.player,
+                buttons = op.buttons,
+                frames = op.frames,
+                framecount = op.framecount,
+                release_framecount = CAPS.framecount and emu.framecount() or nil,
+                pressed_readback = op.pressed_readback,
+                held_readback = op.held_readback,
+                released_readback = op.released_readback,
+            },
+        }
+    end
+end
+
 -- Per-frame round trip
 local function tick()
     local outgoing
@@ -455,14 +473,9 @@ local function tick()
         outgoing = "READY"
     end
 
-    local send_result = comm.socketServerSend(outgoing .. "\n")
-    console.log(string.format("[ghidra-bizhawk-mcp] sent %s (send=%s)", outgoing, tostring(send_result)))
-    if comm.socketServerSuccessful then
-        console.log(string.format("[ghidra-bizhawk-mcp] socketServerSuccessful=%s", tostring(comm.socketServerSuccessful())))
-    end
+    comm.socketServerSend(outgoing .. "\n")
 
     local incoming = comm.socketServerResponse()
-    console.log(string.format("[ghidra-bizhawk-mcp] socketServerResponse=%s", tostring(incoming)))
     if incoming and type(incoming) == "string" and #incoming > 0 then
         incoming = strip_length_prefix(incoming):gsub("[\r\n]+$", "")
         if incoming ~= "NONE" and #incoming > 0 then
@@ -474,8 +487,19 @@ local function tick()
                     console.log(string.format("[ghidra-bizhawk-mcp] command id=%s error=%s", tostring(cmd.id), tostring(rpc_err.message)))
                     pending_result = { id = cmd.id, error = rpc_err }
                 else
-                    console.log(string.format("[ghidra-bizhawk-mcp] command id=%s result=%s", tostring(cmd.id), json.encode(result)))
-                    pending_result = { id = cmd.id, result = result }
+                    if type(result) == "table" and result._deferred_tap then
+                        tap_operation = {
+                            id = cmd.id,
+                            player = result.player,
+                            buttons = result.buttons,
+                            frames = result.frames,
+                            held_frames = 0,
+                            stage = "hold",
+                        }
+                    else
+                        console.log(string.format("[ghidra-bizhawk-mcp] command id=%s result=%s", tostring(cmd.id), json.encode(result)))
+                        pending_result = { id = cmd.id, result = result }
+                    end
                 end
             else
                 pending_result = { id = nil, error = { code = -32700, message = "parse error" } }
@@ -523,9 +547,13 @@ while true do
     end
 
     tick()
+    if CAPS.joypad_set and next(active_buttons) then
+        joypad.set(active_buttons)
+    end
     if skip_outer_frameadvance then
         skip_outer_frameadvance = false
     else
         emu.frameadvance()
     end
+    finish_tap_frame()
 end

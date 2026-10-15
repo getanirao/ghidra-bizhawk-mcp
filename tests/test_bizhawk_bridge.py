@@ -1,7 +1,7 @@
-"""Integration test for BizhawkBridge TCP protocol.
+"""Integration test for the BizHawk TCP client and MCP listener protocol.
 
-Simulates BizHawk's built-in socket server + bridge.lua on the server side,
-while the BizhawkBridge connects as a TCP client.
+Simulates BizHawk's built-in socket client + bridge.lua, while the
+BizhawkBridge accepts the connection as a TCP server.
 
 Verifies the full READY/RESULT/command cycle, timeouts, and
 connection-loss handling.
@@ -28,42 +28,32 @@ logging.basicConfig(level=logging.DEBUG, stream=sys.stderr,
 
 
 def _encode_lua_to_python(message: str) -> bytes:
-    """Simulate what bridge.lua sends — plain newline-delimited text."""
-    return (message + "\n").encode("utf-8")
+    """Simulate BizHawk's length-prefixed socketServerSend payload."""
+    payload = (message + "\n").encode("utf-8")
+    return str(len(payload)).encode("ascii") + b" " + payload
 
 
-class MockBizhawkServer:
-    """Simulates BizHawk's built-in socket server + bridge.lua for testing.
-
-    Runs a TCP server that the BizhawkBridge (Python side) connects to.
-    """
+class MockBizhawkClient:
+    """Simulates BizHawk's socket client and bridge.lua for testing."""
 
     def __init__(self, host="127.0.0.1", port=8766):
         self._host = host
         self._port = port
-        self._server = None
         self._reader = None
         self._writer = None
         self._last_sent = None
         self._last_received = None
 
     async def start(self):
-        """Start the mock TCP server and wait for the bridge to connect."""
-        async def _handle(reader, writer):
-            self._reader = reader
-            self._writer = writer
-        self._server = await asyncio.start_server(_handle, self._host, self._port)
+        """Connect to the MCP listener as EmuHawk does."""
+        self._reader, self._writer = await asyncio.open_connection(
+            self._host, self._port
+        )
         return self
 
     async def wait_for_client(self, timeout=10.0):
-        """Wait for the BizhawkBridge to connect."""
-        deadline = asyncio.get_running_loop().time() + timeout
-        while True:
-            if self._reader is not None:
-                return
-            if asyncio.get_running_loop().time() >= deadline:
-                raise TimeoutError("Mock server: bridge did not connect in time")
-            await asyncio.sleep(0.05)
+        """Yield once so the bridge's accept callback can run."""
+        await asyncio.sleep(0)
 
     async def send(self, message: str):
         """Send a message (as bridge.lua would)."""
@@ -84,10 +74,6 @@ class MockBizhawkServer:
             return body
         return raw
 
-    @property
-    def port(self):
-        return self._server.sockets[0].getsockname()[1] if self._server else self._port
-
     async def close(self):
         if self._writer:
             self._writer.close()
@@ -96,22 +82,19 @@ class MockBizhawkServer:
             except Exception:
                 pass
             self._writer = None
-        if self._server:
-            self._server.close()
-            try:
-                await self._server.wait_closed()
-            except Exception:
-                pass
-            self._server = None
+
+
+async def connected_pair():
+    bridge = BizhawkBridge(port=0)
+    await bridge.start()
+    mock = await MockBizhawkClient(port=bridge._port).start()
+    await mock.wait_for_client()
+    return bridge, mock
 
 
 async def test_ping_pong():
     """Handshake → send ping → verify pong response."""
-    mock = await MockBizhawkServer(port=0).start()
-    port = mock.port
-    bridge = BizhawkBridge(port=port)
-    await bridge._connect_to_bizhawk()  # connect as client
-    await mock.wait_for_client()
+    bridge, mock = await connected_pair()
 
     # Frame 1: Lua sends "READY" → Python should respond with "NONE"
     await mock.send("READY")
@@ -145,11 +128,7 @@ async def test_ping_pong():
 
 async def test_read_memory():
     """Test read_range command returns proper byte array."""
-    mock = await MockBizhawkServer(port=0).start()
-    port = mock.port
-    bridge = BizhawkBridge(port=port)
-    await bridge._connect_to_bizhawk()
-    await mock.wait_for_client()
+    bridge, mock = await connected_pair()
 
     await mock.send("READY")
     assert await mock.receive() == "NONE"
@@ -179,11 +158,7 @@ async def test_read_memory():
 
 async def test_write_memory():
     """Test write_range command."""
-    mock = await MockBizhawkServer(port=0).start()
-    port = mock.port
-    bridge = BizhawkBridge(port=port)
-    await bridge._connect_to_bizhawk()
-    await mock.wait_for_client()
+    bridge, mock = await connected_pair()
 
     await mock.send("READY")
     await mock.receive()
@@ -218,11 +193,7 @@ async def test_write_memory():
 
 async def test_consecutive_commands():
     """Test multiple commands in sequence."""
-    mock = await MockBizhawkServer(port=0).start()
-    port = mock.port
-    bridge = BizhawkBridge(port=port)
-    await bridge._connect_to_bizhawk()
-    await mock.wait_for_client()
+    bridge, mock = await connected_pair()
 
     await mock.send("READY")
     assert await mock.receive() == "NONE"
@@ -253,12 +224,11 @@ async def test_is_connected():
     bridge = BizhawkBridge()
     assert not bridge.is_connected, "Should not be connected initially"
 
-    mock = await MockBizhawkServer(port=0).start()
-    port = mock.port
-    bridge = BizhawkBridge(port=port)
-    assert not bridge.is_connected, "Should not be connected before connect"
+    bridge = BizhawkBridge(port=0)
+    await bridge.start()
+    assert not bridge.is_connected, "Should not be connected before client connects"
+    mock = await MockBizhawkClient(port=bridge._port).start()
 
-    await bridge._connect_to_bizhawk()
     await mock.wait_for_client()
     await mock.send("READY")
     await mock.receive()
@@ -271,11 +241,7 @@ async def test_is_connected():
 
 async def test_error_response():
     """Test that bridge error responses propagate as exceptions."""
-    mock = await MockBizhawkServer(port=0).start()
-    port = mock.port
-    bridge = BizhawkBridge(port=port)
-    await bridge._connect_to_bizhawk()
-    await mock.wait_for_client()
+    bridge, mock = await connected_pair()
 
     await mock.send("READY")
     await mock.receive()
@@ -304,11 +270,7 @@ async def test_error_response():
 
 async def test_connection_lost_during_command():
     """Test that disconnect raises RuntimeError in waiting command."""
-    mock = await MockBizhawkServer(port=0).start()
-    port = mock.port
-    bridge = BizhawkBridge(port=port)
-    await bridge._connect_to_bizhawk()
-    await mock.wait_for_client()
+    bridge, mock = await connected_pair()
 
     await mock.send("READY")
     await mock.receive()
@@ -331,11 +293,7 @@ async def test_connection_lost_during_command():
 
 async def test_timeout():
     """Test that send_command times out."""
-    mock = await MockBizhawkServer(port=0).start()
-    port = mock.port
-    bridge = BizhawkBridge(port=port)
-    await bridge._connect_to_bizhawk()
-    await mock.wait_for_client()
+    bridge, mock = await connected_pair()
 
     await mock.send("READY")
     await mock.receive()
@@ -443,6 +401,7 @@ async def main():
         ("test_is_connected", test_is_connected),
         ("test_error_response", test_error_response),
         ("test_connection_lost_during_command", test_connection_lost_during_command),
+        ("test_timeout", test_timeout),
         ("test_ensure_responsive", test_ensure_responsive),
         ("test_bizhawk_launch_rejects_missing_rom", test_bizhawk_launch_rejects_missing_rom),
         ("test_tool_result_helpers", test_tool_result_helpers),

@@ -37,3 +37,6 @@ asyncio_mode = "auto"
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["ghidra_bizhawk_mcp*"]
+
+[tool.setuptools.package-data]
+ghidra_bizhawk_mcp = ["lua/*.lua"]

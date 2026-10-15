@@ -1,0 +1,1027 @@
+{
+  "tools": {
+    "ghidra_analyze": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "binary_path": {
+            "type": "string",
+            "description": "Absolute path to the binary file to analyze. Supports ELF, PE, Mach-O, and raw binaries."
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Optional session tracking ID. Auto-generated if omitted. Use to reuse a session across multiple tool calls."
+          }
+        },
+        "required": [
+          "binary_path"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_sessions": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Optional session ID to filter by. Returns only the matching session if provided."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_session_close": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Session ID to close. Get active sessions from ghidra.sessions."
+          }
+        },
+        "required": [
+          "session_id"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_decompile": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "function_name": {
+            "type": "string",
+            "description": "Function name (e.g. 'main', 'FUN_08000100') or hex address (e.g. '0x08000100')"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "function_name"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_decompile_paginated": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "function_name": {
+            "type": "string",
+            "description": "Function name or hex address to decompile"
+          },
+          "line_start": {
+            "type": "integer",
+            "description": "1-indexed start line for paginated output"
+          },
+          "line_end": {
+            "type": "integer",
+            "description": "1-indexed end line (exclusive) for paginated output"
+          },
+          "max_tokens": {
+            "type": "integer",
+            "description": "Truncate output to approximately N tokens to stay within context budget"
+          },
+          "summarize": {
+            "type": "boolean",
+            "description": "Set to true to strip boilerplate local variable declarations and collapse blank lines"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "function_name"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_data_types": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_cross_references": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "Target address (e.g. '0x401000') to find cross-references for"
+          },
+          "max_results": {
+            "type": "integer",
+            "default": 100,
+            "description": "Maximum number of reference results to return (default 100)"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "address"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_call_graph": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "function_name": {
+            "type": "string",
+            "description": "Function name or hex address to get the call graph for"
+          },
+          "max_depth": {
+            "type": "integer",
+            "default": 3,
+            "description": "Recursion depth for the call graph (default 3, max 10)"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "function_name"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_decompile_entrypoints": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_report": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_rename": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "Address of the symbol to rename (e.g. '0x08000100')"
+          },
+          "new_name": {
+            "type": "string",
+            "description": "New name for the symbol (alphanumeric + underscores only)"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "address",
+          "new_name"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_comment": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "Address to attach the comment to (e.g. '0x08000100')"
+          },
+          "text": {
+            "type": "string",
+            "description": "Comment text content"
+          },
+          "comment_type": {
+            "type": "string",
+            "default": "plate",
+            "description": "Type of comment: 'plate' (boxed header), 'pre' (before code), 'post' (after code), 'eol' (end of line), 'repeatable' (appears at all references)"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "address",
+          "text"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_create_struct": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name for the new struct type (e.g. 'PacketHeader')"
+          },
+          "members": {
+            "type": "array",
+            "description": "Array of member field definitions forming the struct layout: [{'name':'length','type':'int'}, ...]. Offsets are optional."
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "name",
+          "members"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_retype": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "Address inside the function containing the variable to retype"
+          },
+          "variable_name": {
+            "type": "string",
+            "description": "Name of the local variable or parameter to retype"
+          },
+          "new_type": {
+            "type": "string",
+            "description": "New type string (e.g. 'MyStruct*', 'int', 'char[256]')"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "address",
+          "variable_name",
+          "new_type"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_disassemble": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "Starting address for disassembly (e.g. '0x08000100')"
+          },
+          "instruction_count": {
+            "type": "integer",
+            "default": 10,
+            "description": "Number of instructions to disassemble (default 10, max 100)"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "address"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_search": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "description": "Hex byte pattern to search for (e.g. '09 08 00 01' with spaces, or 'F86D0003' without)"
+          },
+          "max_results": {
+            "type": "integer",
+            "default": 50,
+            "description": "Maximum number of matches to return (default 50)"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "pattern"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_listing": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "start_address": {
+            "type": "string",
+            "description": "Starting address for the hex dump (e.g. '0x08000100')"
+          },
+          "byte_count": {
+            "type": "integer",
+            "default": 64,
+            "description": "Total number of bytes to dump (default 64, max 4096)"
+          },
+          "columns": {
+            "type": "integer",
+            "default": 16,
+            "description": "Bytes per row in the hex dump (default 16)"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "start_address"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_diff": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_a": {
+            "type": "string",
+            "description": "First session ID (the 'old' binary)"
+          },
+          "session_b": {
+            "type": "string",
+            "description": "Second session ID (the 'new' binary)"
+          }
+        },
+        "required": [
+          "session_a",
+          "session_b"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_emulate": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "start_address": {
+            "type": "string",
+            "description": "Starting address for emulation (e.g. '0x1000')"
+          },
+          "instruction_count": {
+            "type": "integer",
+            "default": 10,
+            "description": "Number of instructions to step through (default 10)"
+          },
+          "initial_registers": {
+            "type": "object",
+            "description": "Register seed values as a JSON object, e.g. {\"r0\": 5, \"r1\": 1095216660}"
+          },
+          "track_registers": {
+            "type": "array",
+            "description": "Subset of register names to log at each step (default: all seeded + PC)"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "start_address"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_emulate_taint": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "start_address": {
+            "type": "string",
+            "description": "Starting address for emulation (e.g. '0x1000')"
+          },
+          "instruction_count": {
+            "type": "integer",
+            "default": 10,
+            "description": "Number of instructions to step through (default 10)"
+          },
+          "initial_registers": {
+            "type": "object",
+            "description": "Register seed values, e.g. {\"r0\": 5, \"r1\": 0x41424344}"
+          },
+          "taint_register": {
+            "type": "string",
+            "default": "r0",
+            "description": "Register name to track for data lineage (default 'r0')"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "start_address"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_emulate_breakpoints": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "start_address": {
+            "type": "string",
+            "description": "Starting address for emulation (e.g. '0x1000')"
+          },
+          "instruction_count": {
+            "type": "integer",
+            "default": 50,
+            "description": "Maximum instructions to execute before timeout (default 50)"
+          },
+          "initial_registers": {
+            "type": "object",
+            "description": "Register seed values for initial emulator state"
+          },
+          "break_condition": {
+            "type": "string",
+            "description": "Break condition string. Examples: R0==0, R1>0xFF, R2!=R3, PC==0x1234"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "start_address"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_fingerprint": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "func_name": {
+            "type": "string",
+            "description": "Function name or address to fingerprint (e.g. 'main' or '0x08000100')"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "func_name"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_export_signatures": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_apply_signatures": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "signature_json_map": {
+            "type": "object",
+            "description": "Signature map JSON object from a previous ghidra.export_signatures call. Format: {hash: function_name}"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "signature_json_map"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_stash_save": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "lineage_group_id": {
+            "type": "string",
+            "description": "Group name for this binary family (e.g. 'my_firmware_v1')"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "lineage_group_id"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_stash_restore": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "lineage_group_id": {
+            "type": "string",
+            "description": "Group name that was used during ghidra.stash_save"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        },
+        "required": [
+          "lineage_group_id"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_stash_auto_save": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_stash_auto_restore": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Session ID (defaults to most recently active session)"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_stash_list": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "lineage_group_id": {
+            "type": "string",
+            "description": "Optional lineage group ID to filter by. Returns details for a specific group if provided."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "ghidra_triage": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "rom_path": {
+            "type": "string",
+            "description": "Absolute system path to the ROM file for architecture detection and loading"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Optional session tracking token for multi-binary context"
+          }
+        },
+        "required": [
+          "rom_path"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "bizhawk_connect": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "timeout": {
+            "type": "integer",
+            "default": 5,
+            "description": "Connection timeout in seconds (default 5). Increase for slow or remote emulator instances."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "bizhawk_info": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "detail": {
+            "type": "string",
+            "enum": [
+              "summary",
+              "full"
+            ],
+            "default": "summary",
+            "description": "Detail level: 'summary' for key info, 'full' for all available metadata including memory domains."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "bizhawk_memory_domains": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "domain": {
+            "type": "string",
+            "description": "Optional domain name to get details for a specific memory domain (e.g. 'WRAM', 'VRAM'). Returns all domains if omitted."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "bizhawk_read": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "integer",
+            "description": "Starting memory address (decimal or hex, e.g. 0x02000000)"
+          },
+          "size": {
+            "type": "integer",
+            "default": 4,
+            "description": "Number of bytes to read (default 4, max 4096)"
+          },
+          "domain": {
+            "type": "string",
+            "description": "Memory domain (e.g. WRAM, RAM, EWRAM). Use bizhawk.memory_domains to discover names."
+          }
+        },
+        "required": [
+          "address"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "bizhawk_write": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "integer",
+            "description": "Starting memory address to write to"
+          },
+          "data": {
+            "type": "array",
+            "description": "Array of byte values to write (max 4096). Example: [0x00, 0xFF, 0xAB]"
+          },
+          "domain": {
+            "type": "string",
+            "description": "Optional memory domain (e.g. WRAM, RAM)"
+          }
+        },
+        "required": [
+          "address",
+          "data"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "bizhawk_buttons": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "buttons": {
+            "type": "object",
+            "description": "Button states: {ButtonName: true/false}. Names: A, B, Up, Down, Left, Right, Start, Select, L, R, X, Y"
+          },
+          "player": {
+            "type": "integer",
+            "default": 1,
+            "description": "Player number (1-based)"
+          }
+        },
+        "required": [
+          "buttons"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "bizhawk_frame": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "default": 1,
+            "description": "Number of frames to advance (default 1)"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "bizhawk_pause": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Optional reason for pausing (e.g. 'reading memory', 'inspecting state'). Logged for debugging."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "bizhawk_unpause": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Optional reason for unpausing (e.g. 'resuming after memory read'). Logged for debugging."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "bizhawk_reset": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "hard": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, perform a hard reset (reload ROM). If false (default), perform a soft reset."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "bizhawk_screenshot": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Absolute file path to save the PNG screenshot (e.g. 'C:/temp/shot.png')"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "bizhawk_save_state": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Absolute file path for the savestate (e.g. 'C:/temp/state.bin')"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "bizhawk_load_state": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Absolute file path of the savestate to load"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    },
+    "bizhawk_launch": {
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "rom_path": {
+            "type": "string",
+            "description": "Optional absolute path to a ROM file to load on startup"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Tool execution result as a JSON-formatted string"
+      }
+    }
+  },
+  "prompt_arguments": {
+    "analyze_rom": [
+      {
+        "name": "rom_path",
+        "description": "Absolute path to the ROM file to analyze",
+        "required": true
+      }
+    ],
+    "session_workflow": [
+      {
+        "name": "binary_path",
+        "description": "Optional path to a binary to analyze. If omitted, demonstrates the general workflow.",
+        "required": false
+      }
+    ],
+    "debug_emulation": [
+      {
+        "name": "address",
+        "description": "Starting address for emulation (e.g. '0x08000100')",
+        "required": true
+      },
+      {
+        "name": "session_id",
+        "description": "Session ID for the loaded binary context",
+        "required": false
+      }
+    ],
+    "live_debug": [
+      {
+        "name": "rom_path",
+        "description": "Path to the ROM file for analysis",
+        "required": true
+      }
+    ],
+    "binary_diff": [
+      {
+        "name": "binary_a",
+        "description": "Path to the first (old) binary version",
+        "required": true
+      },
+      {
+        "name": "binary_b",
+        "description": "Path to the second (new) binary version",
+        "required": true
+      }
+    ]
+  }
+}

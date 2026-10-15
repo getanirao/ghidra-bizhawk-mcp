@@ -292,7 +292,7 @@ npm install -g @anthropic-ai/mcpb
 **Build the bundle:**
 
 ```bash
-# From the repo root
+# From the repo root — also builds the Smithery publish variant
 scripts/build-mcpb.ps1
 ```
 
@@ -306,8 +306,14 @@ The output `ghidra-bizhawk-mcp.mcpb` wraps the server with a `manifest.json` tha
 
 **Publishing to Smithery:**
 
+Smithery's publish API requires MCP-style tool schemas (`inputSchema`) and
+object-form prompt arguments, which the MCPB schema forbids in `manifest.json`.
+The build script therefore emits a second bundle whose manifest is patched from
+`mcpb/tool-schemas.json`:
+
 ```bash
-smithery mcp publish ./dist/ghidra-bizhawk-mcp.mcpb -n getanirao/ghidra-bizhawk-mcp
+python scripts/build_smithery_bundle.py
+smithery mcp publish ./dist/ghidra-bizhawk-mcp.smithery.mcpb -n getanirao/ghidra-bizhawk-mcp
 ```
 
 ### P-code micro-emulation

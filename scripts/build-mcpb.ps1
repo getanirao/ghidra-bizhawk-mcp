@@ -65,6 +65,16 @@ if ($McpbPath) {
     Compress-Archive -Path "$BundleDir/*" -DestinationPath $OutBundle -Force
 }
 
+# Build the Smithery publish variant (manifest patched with MCP tool schemas,
+# which the MCPB schema forbids but Smithery's publish API requires)
+$ErrorActionPreference = 'Continue'
+$variantOut = python (Join-Path $RepoRoot "scripts/build_smithery_bundle.py") 2>&1 | Out-String
+if ($LASTEXITCODE -ne 0) {
+    throw "build_smithery_bundle.py failed with exit code $LASTEXITCODE`n$variantOut"
+}
+$ErrorActionPreference = 'Stop'
+Write-Host "Smithery bundle variant created" -ForegroundColor Green
+
 # Cleanup
 Remove-Item -Recurse -Force $BundleDir
 

@@ -30,7 +30,13 @@ Get-ChildItem -Recurse $BundleDir -Filter "*.pyc" | Remove-Item -Force
 Write-Host "Installing Python dependencies..." -ForegroundColor Cyan
 $LibDir = Join-Path $BundleDir "server/lib"
 New-Item -ItemType Directory -Force -Path $LibDir | Out-Null
-pip install --target "$LibDir" --no-compile -e "$RepoRoot" --quiet 2>&1 | Out-Null
+# Native stderr must not become terminating errors under $ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Continue'
+$pipOut = pip install --target "$LibDir" --no-compile -e "$RepoRoot" --quiet 2>&1 | Out-String
+if ($LASTEXITCODE -ne 0) {
+    throw "pip install failed with exit code $LASTEXITCODE`n$pipOut"
+}
+$ErrorActionPreference = 'Stop'
 # Remove dev/optional baggage
 Get-ChildItem -Recurse $LibDir -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 Get-ChildItem -Recurse $LibDir -Filter "*.pyc" | Remove-Item -Force -ErrorAction SilentlyContinue
@@ -39,20 +45,24 @@ Write-Host "Dependencies installed" -ForegroundColor Green
 
 # Try mcpb CLI first, fall back to manual ZIP
 $McpbPath = (Get-Command "mcpb" -ErrorAction SilentlyContinue)
+$OutBundle = Join-Path $RepoRoot "dist/ghidra-bizhawk-mcp.mcpb"
 if ($McpbPath) {
     Push-Location $BundleDir
     try {
-        mcpb pack
+        $ErrorActionPreference = 'Continue'
+        $packOut = mcpb pack . "$OutBundle" 2>&1 | Out-String
+        if ($LASTEXITCODE -ne 0) {
+            throw "mcpb pack failed with exit code $LASTEXITCODE`n$packOut"
+        }
+        $ErrorActionPreference = 'Stop'
         Write-Host "mcpb pack complete" -ForegroundColor Green
-        # Move .mcpb file to dist/
-        Get-ChildItem "*.mcpb" | Move-Item -Destination "$RepoRoot/dist/" -Force
     } finally {
         Pop-Location
     }
 } else {
     Write-Host "mcpb CLI not found. Creating manual ZIP bundle..." -ForegroundColor Yellow
     Write-Host "Install with: npm install -g @anthropic-ai/mcpb" -ForegroundColor Yellow
-    Compress-Archive -Path "$BundleDir/*" -DestinationPath "$RepoRoot/dist/ghidra-bizhawk-mcp.mcpb" -Force
+    Compress-Archive -Path "$BundleDir/*" -DestinationPath $OutBundle -Force
 }
 
 # Cleanup

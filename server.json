@@ -3,7 +3,7 @@
   "name": "io.github.getanirao/ghidra-bizhawk-mcp",
   "title": "Ghidra BizHawk MCP",
   "version": "1.1.0",
-  "description": "Unified Ghidra + BizHawk MCP server for static analysis, P-code emulation, multi-console ROM triage, and live emulation.",
+  "description": "Unified Ghidra + BizHawk MCP server for static analysis, P-code emulation, and retro ROM triage.",
   "author": "getanirao",
   "license": "Apache-2.0",
   "websiteUrl": "https://github.com/getanirao/ghidra-bizhawk-mcp",

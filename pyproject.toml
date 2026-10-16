@@ -16,7 +16,6 @@ classifiers = [
     "Operating System :: OS Independent",
     "Topic :: Security",
     "Topic :: System :: Emulators",
-    "Framework :: MCP",
 ]
 dependencies = [
     "mcp>=1.0.0",
